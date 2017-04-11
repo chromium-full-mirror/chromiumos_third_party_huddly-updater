@@ -1,0 +1,4 @@
+# Huddly USB rules
+SUBSYSTEM=="usb", ATTR{idVendor}=="2bd9", MODE="0664"
+SUBSYSTEM=="usb", ATTR{idVendor}=="15ba", MODE="0664"
+SUBSYSTEM=="usb", ATTR{idVendor}=="04b4", MODE="0664"
