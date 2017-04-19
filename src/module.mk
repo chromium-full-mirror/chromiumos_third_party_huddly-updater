@@ -4,6 +4,6 @@
 
 include common.mk
 
-CXX_BINARY(huddly-updater): src/helloworld.o
+CXX_BINARY(huddly-updater): src/main.o src/firmware.o src/tools.o
 all: CXX_BINARY(huddly-updater)
 clean: CLEAN(CXX_BINARY(huddly-updater))
