@@ -14,11 +14,11 @@ class Firmware {
   Firmware();
   ~Firmware();
 
-  bool IsReady(std::string *err_msg) const;
-  bool Uncompress(const std::string &file_path, std::string *err_msg) const;
+  bool IsReady(std::string* err_msg) const;
+  bool Uncompress(const std::string& file_path, std::string* err_msg) const;
 
   std::string GetFirmwarePath() const;
-  bool HasFile(const std::string &file_path) const;
+  bool HasFile(const std::string& file_path) const;
 
   std::string app_version() const { return app_version_; }
   std::string bootloader_version() const { return bootloader_version_; }
@@ -26,8 +26,8 @@ class Firmware {
   std::string QueryBootloaderVersion();
 
  private:
-  Firmware(const Firmware &) = delete;
-  Firmware &operator=(const Firmware &) = delete;
+  Firmware(const Firmware&) = delete;
+  Firmware& operator=(const Firmware&) = delete;
 
   std::string firmware_path_;
   std::string bootloader_version_;

@@ -9,7 +9,8 @@
 
 namespace huddly {
 
-bool RunCommand(const std::string &cmd, std::string *output);
+bool RunCommand(const std::string& cmd, std::string* output);
+std::string UsbIdToString(uint16_t vendor_id, uint16_t product_id);
 
 }  // namespace huddly
 

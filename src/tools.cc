@@ -11,12 +11,12 @@ namespace huddly {
 
 const int kShellCmdOutBufSize = 128;
 
-bool RunCommand(const std::string &cmd, std::string *output) {
+bool RunCommand(const std::string& cmd, std::string* output) {
   char buff[kShellCmdOutBufSize];
   std::string result;
 
   std::cout << "[CMD] " << cmd << std::endl;
-  std::FILE *pipe(popen(cmd.c_str(), "r"));
+  std::FILE* pipe(popen(cmd.c_str(), "r"));
   if (!pipe) {
     *output = "failed to open pipe";
     return false;
@@ -29,6 +29,12 @@ bool RunCommand(const std::string &cmd, std::string *output) {
   pclose(pipe);
   *output = result;
   return true;
+}
+
+std::string UsbIdToString(uint16_t vendor_id, uint16_t product_id) {
+  char buffer[10];
+  snprintf(buffer, sizeof(buffer), "%04x:%04x", vendor_id, product_id);
+  return buffer;
 }
 
 }  // namespace huddly

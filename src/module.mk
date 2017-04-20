@@ -4,6 +4,13 @@
 
 include common.mk
 
-CXX_BINARY(huddly-updater): src/main.o src/firmware.o src/tools.o
+PC_DEPS = libusb-1.0 libudev
+PC_CFLAGS := $(shell $(PKG_CONFIG) --cflags $(PC_DEPS))
+PC_LIBS := $(shell $(PKG_CONFIG) --libs $(PC_DEPS))
+LDLIBS += $(PC_LIBS)
+
+CPPFLAGS += $(PC_CFLAGS)
+
+CXX_BINARY(huddly-updater): src/main.o src/firmware.o src/tools.o src/usb_device.o
 all: CXX_BINARY(huddly-updater)
 clean: CLEAN(CXX_BINARY(huddly-updater))

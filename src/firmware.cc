@@ -34,7 +34,7 @@ Firmware::Firmware() {
 }
 Firmware::~Firmware() {}
 
-bool Firmware::IsReady(std::string *err_msg) const {
+bool Firmware::IsReady(std::string* err_msg) const {
   if (!HasFile(kHuddlyPkgPath)) {
     *err_msg = "firmware pkg not ready: " + std::string(kHuddlyPkgPath);
     return false;
@@ -56,15 +56,15 @@ bool Firmware::IsReady(std::string *err_msg) const {
   return true;
 }
 
-bool Firmware::HasFile(const std::string &file_path) const {
+bool Firmware::HasFile(const std::string& file_path) const {
   // Not only checking the precense, but also checks the
   // goodness in the sense of ifstream.
   std::ifstream f(file_path.c_str());
   return f.good();
 }
 
-bool Firmware::Uncompress(const std::string &file_path,
-                          std::string *err_msg) const {
+bool Firmware::Uncompress(const std::string& file_path,
+                          std::string* err_msg) const {
   std::cout << ".. Uncompressing " << file_path << " on " << kWorkDir
             << std::endl;
   // TODO(porce): Make this line configurable. Make it softer.
