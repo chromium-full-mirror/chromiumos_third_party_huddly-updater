@@ -12,6 +12,19 @@ namespace huddly {
 bool RunCommand(const std::string& cmd, std::string* output);
 std::string UsbIdToString(uint16_t vendor_id, uint16_t product_id);
 
+uint32_t LittleEndianUint8ArrayToUint32(uint8_t* array);
+
+uint64_t GetNowMilliSec();
+void SleepMilliSec(uint32_t millisec);
+
+bool GetFileSize(const std::string& img_path,
+                 uint32_t* file_size,
+                 std::string* err_msg);
+uint32_t ReadFileToArray(const std::string& img_path,
+                         uint32_t data_len,
+                         uint8_t* data,
+                         std::string* err_msg);
+
 }  // namespace huddly
 
 #endif  // SRC_TOOLS_H_
