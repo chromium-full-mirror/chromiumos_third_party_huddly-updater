@@ -12,15 +12,25 @@ namespace huddly {
 
 const int kStrBufSize = 200;
 
+UsbDevice::UsbDevice()
+    : vendor_id_(0),
+      product_id_(0),
+      interface_number_(0),
+      was_kernel_driver_active_(false),
+      is_claimed_(false),
+      context_(nullptr),
+      dev_(nullptr),
+      dev_handle_(nullptr) {}
+
 UsbDevice::UsbDevice(uint16_t vendor_id, uint16_t product_id)
-    : vendor_id_(vendor_id), product_id_(product_id) {
-  interface_number_ = 0;
-  was_kernel_driver_active_ = false;
-  is_claimed_ = false;
-  context_ = nullptr;
-  dev_ = nullptr;
-  dev_handle_ = nullptr;
-}
+    : vendor_id_(vendor_id),
+      product_id_(product_id),
+      interface_number_(0),
+      was_kernel_driver_active_(false),
+      is_claimed_(false),
+      context_(nullptr),
+      dev_(nullptr),
+      dev_handle_(nullptr) {}
 
 UsbDevice::~UsbDevice() {
   std::string err_msg;
@@ -55,6 +65,14 @@ bool UsbDevice::Setup(std::string* err_msg) {
   return true;
 }
 
+bool UsbDevice::Setup(uint16_t vendor_id,
+                      uint16_t product_id,
+                      std::string* err_msg) {
+  vendor_id_ = vendor_id;
+  product_id_ = product_id;
+  return Setup(err_msg);
+}
+
 bool UsbDevice::Teardown(std::string* err_msg) {
   // Multiple steps in tear down process.
   // Even if one step fails, the next step continues.
@@ -70,6 +88,66 @@ bool UsbDevice::Teardown(std::string* err_msg) {
   }
 
   return is_success;
+}
+
+bool UsbDevice::ControlTransfer(uint8_t request_type,
+                                uint8_t request,
+                                uint32_t address,
+                                uint32_t data_len,
+                                uint8_t* data,
+                                std::string* err_msg) const {
+  uint8_t libusb_request_type = static_cast<uint8_t>(request_type);
+  uint8_t libusb_request = request & 0xff;
+  uint16_t libusb_value = address & 0xffff;
+  uint16_t libusb_index = (address >> 16) & 0xffff;
+
+  const int kUsbReadWriteTimeOut = 1000;  // msec
+
+  /*  Debug line. Keep this till code freeze
+      TODO(porce): Delete by May 12 2017
+    printf(
+        "DBG: LIBUSB_CONTROL_TRANSFER: devhandle %p  reqtype %02x req %02x value
+    "
+        "%02x "
+        "idx "
+        "%02x ::  datalen %u data_first_char %c\n",
+        dev_handle_, libusb_request_type, libusb_request, libusb_value,
+        libusb_index, data_len, data[0]);
+  */
+  int ret = libusb_control_transfer(dev_handle_, libusb_request_type,
+                                    libusb_request, libusb_value, libusb_index,
+                                    data, data_len, kUsbReadWriteTimeOut);
+
+  if (ret == static_cast<int>(data_len)) {
+    return true;
+  }
+  if (ret < 0) {
+    *err_msg += ".. failed in control transfer: " + ErrCodeToErrMsg(ret);
+    return false;
+  }
+
+  // Received only part of what was requested.
+  char err_msg_buf[kStrBufSize];
+  snprintf(
+      err_msg_buf, sizeof(err_msg_buf),
+      ".. failed to read fully from USB. Want %d bytes. Got %d bytes: request "
+      "type %x request %x value %x index %x",
+      data_len, ret, libusb_request_type, libusb_request, libusb_value,
+      libusb_index);
+  *err_msg += err_msg_buf;
+  return false;
+}
+std::string UsbDevice::GetId() const {
+  return UsbIdToString(vendor_id_, product_id_);
+}
+
+std::string UsbDevice::ErrCodeToErrMsg(int err_code) const {
+  char err_msg[kStrBufSize];
+  snprintf(err_msg, sizeof(err_msg), "Error code: %s(%d) : %s",
+           libusb_error_name(err_code), err_code,
+           libusb_strerror(static_cast<enum libusb_error>(err_code)));
+
+  return err_msg;
 }
 
 bool UsbDevice::GetDevHandle(std::string* err_msg) {
@@ -197,74 +275,4 @@ int UsbDevice::GetInterfaceNumber() const {
   return 0;
 }
 
-bool UsbDevice::VendorRead(VendorRequest vendor_request, int data_len,
-                           uint8_t* data, std::string* err_msg) const {
-  const int request_type = 0xc0;
-  const int address = 0x00;
-
-  return ControlTransfer(request_type, vendor_request, address, data_len, data,
-                         err_msg);
-}
-
-bool UsbDevice::ControlTransfer(int request_type, VendorRequest vendor_request,
-                                int address, int data_len, uint8_t* data,
-                                std::string* err_msg) const {
-  uint8_t libusb_request_type = static_cast<uint8_t>(request_type);
-  uint8_t libusb_request = static_cast<uint8_t>(vendor_request) & 0xff;
-  uint16_t libusb_value = address & 0xffff;
-  uint16_t libusb_index = (address >> 16) & 0xffff;
-
-  const int kUsbReadWriteTimeOut = 1000;  // msec
-  int ret = libusb_control_transfer(dev_handle_, libusb_request_type,
-                                    libusb_request, libusb_value, libusb_index,
-                                    data, data_len, kUsbReadWriteTimeOut);
-
-  if (ret == data_len) {
-    return true;
-  }
-  if (ret < 0) {
-    *err_msg += ".. failed in control transfer: " + ErrCodeToErrMsg(ret);
-    return false;
-  }
-
-  // Received only part of what was requested.
-  char err_msg_buf[kStrBufSize];
-  snprintf(
-      err_msg_buf, sizeof(err_msg_buf),
-      ".. failed to read fully from USB. Want %d bytes. Got %d bytes: request "
-      "type %x request %x value %x index %x",
-      data_len, ret, libusb_request_type, libusb_request, libusb_value,
-      libusb_index);
-  *err_msg += err_msg_buf;
-  return false;
-}
-
-std::string UsbDevice::GetId() const {
-  return UsbIdToString(vendor_id_, product_id_);
-}
-
-std::string UsbDevice::ErrCodeToErrMsg(int err_code) const {
-  char err_msg[kStrBufSize];
-  snprintf(err_msg, sizeof(err_msg), "Error code: %s(%d) : %s",
-           libusb_error_name(err_code), err_code,
-           libusb_strerror(static_cast<enum libusb_error>(err_code)));
-
-  return err_msg;
-}
-
-std::string UsbDevice::QueryFirmwareVersion() {
-  const int kVersionBytes = 3;
-  uint8_t data[kVersionBytes];
-  std::string err_msg;
-
-  if (!VendorRead(VendorRequest::VERSION, kVersionBytes, data, &err_msg)) {
-    std::cout << ".. failed in vendor reading: " << err_msg << std::endl;
-    return "unknown";  //
-  }
-
-  char buffer[kVersionBytes * 2 + 1];
-  snprintf(buffer, sizeof(buffer), "%02x%02x%02x", data[0], data[1], data[2]);
-  version_ = buffer;
-  return version_;
-}
 }  // namespace huddly
