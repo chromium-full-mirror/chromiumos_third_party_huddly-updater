@@ -20,8 +20,10 @@ class Firmware {
   std::string GetFirmwarePath() const;
   bool HasFile(const std::string& file_path) const;
 
+  std::string app_path() const { return app_path_; }
   std::string app_version() const { return app_version_; }
   std::string bootloader_version() const { return bootloader_version_; }
+
   std::string QueryAppVersion();
   std::string QueryBootloaderVersion();
 
@@ -30,6 +32,7 @@ class Firmware {
   Firmware& operator=(const Firmware&) = delete;
 
   std::string firmware_path_;
+  std::string app_path_;
   std::string bootloader_version_;
   std::string app_version_;
 };

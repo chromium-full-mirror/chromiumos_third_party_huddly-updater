@@ -14,6 +14,8 @@
 #include "tools.h"
 
 namespace huddly {
+
+// TODO(porce): Use minijail, change the path.
 const char kWorkDir[] = "/tmp/huddly/";
 const char kFirmwareAppPath[] = "/tmp/huddly/bin/huddly.bin";
 const char kFirmwareBootloaderPath[] = "/tmp/huddly/bin/huddly_boot.bin";
@@ -27,7 +29,8 @@ std::string Firmware::GetFirmwarePath() const {
   return kHuddlyPkgPath;
 }
 
-Firmware::Firmware() {
+Firmware::Firmware()
+    : app_path_(kFirmwareAppPath), bootloader_version_(""), app_version_("") {
   firmware_path_ = GetFirmwarePath();
   // TODO(porce): Replace std::out with logging, with policy.
   std::cout << ".. using firmware package: " << firmware_path_ << std::endl;
