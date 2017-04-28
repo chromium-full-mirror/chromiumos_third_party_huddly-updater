@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <iostream>
 #include <string>
 
@@ -12,22 +13,13 @@ namespace huddly {
 
 const int kStrBufSize = 200;
 
-UsbDevice::UsbDevice()
-    : vendor_id_(0),
-      product_id_(0),
-      interface_number_(0),
-      was_kernel_driver_active_(false),
-      is_claimed_(false),
-      context_(nullptr),
-      dev_(nullptr),
-      dev_handle_(nullptr) {}
-
 UsbDevice::UsbDevice(uint16_t vendor_id, uint16_t product_id)
     : vendor_id_(vendor_id),
       product_id_(product_id),
       interface_number_(0),
       was_kernel_driver_active_(false),
       is_claimed_(false),
+      is_setup_(false),
       context_(nullptr),
       dev_(nullptr),
       dev_handle_(nullptr) {}
@@ -39,55 +31,137 @@ UsbDevice::~UsbDevice() {
   }
 }
 
+bool UsbDevice::Exists(bool* result, std::string* err_msg) {
+  // Note: there are two different kinds of boolean values.
+  //  - Return value is for status: success or failure.
+  //  - existence check result is stored to *result.
+  // This is in order to support the error propagation, if any.
+
+  libusb_context* ctx = GetContext(err_msg);
+  if (ctx == nullptr) {
+    *err_msg += ".. failed to check if exists: " + GetId();
+    *result = false;  // Default result
+    return false;
+  }
+
+  libusb_device* dev = GetDevice(ctx, err_msg);
+  *result = (dev != nullptr);
+  libusb_exit(ctx);
+  return true;  // API operation succeeded.
+}
+
+bool UsbDevice::WaitForOnline(int timeout_sec, std::string* err_msg) {
+  uint64_t begin = GetNowMilliSec();
+  uint64_t expiry = begin + timeout_sec * 1000;
+
+  while (GetNowMilliSec() < expiry) {
+    bool result = false;
+    if (!Exists(&result, err_msg)) {
+      // API operation failed. Retry.
+      continue;
+    }
+    // API succeeded. Check the result.
+    if (result) {
+      uint64_t elapsed = (GetNowMilliSec() - begin) / 1000;
+      std::cout << ".. found after waiting for " << elapsed << " sec."
+                << std::endl;
+      return true;
+    }
+    // Suppress error and continue;
+    *err_msg = "";  // Suppress
+    huddly::SleepMilliSec(1000);
+  }
+
+  *err_msg += ".. cannot find. Timed out(sec): ";
+  *err_msg += std::to_string(timeout_sec);
+  return false;
+}
+
 bool UsbDevice::Setup(std::string* err_msg) {
+  // TODO(porce): Instead of calling Teardown() manually, use unique_ptr.
+  if (is_setup_) {  // Already setup somehow.
+    // Probably the caller tries to reuse the object. Honor it.
+    Teardown(err_msg);
+  }
   // Set context
-  if (libusb_init(&context_)) {
-    *err_msg += ".. failed to initialize libusb_context";
+  context_ = GetContext(err_msg);
+  if (context_ == nullptr) {
+    *err_msg +=
+        ".. failed to initialize libusb_context .. failed to setup " + GetId();
+    Teardown(err_msg);  // Escape sequence. No return check.
     return false;
   }
 
-  libusb_set_debug(context_, LIBUSB_LOG_LEVEL_INFO);
-
-  if (!GetDevHandle(err_msg)) {
-    *err_msg += ".. failed to get device handle for " + GetId();
+  dev_ = GetDevice(context_, err_msg);
+  if (dev_ == nullptr) {
+    *err_msg += ".. failed to setup " + GetId();
+    Teardown(err_msg);  // Escape sequence. No return check.
     return false;
   }
 
-  // Claim the interface
+  // Get device handle
+  int ret = libusb_open(dev_, &dev_handle_);
+  if (ret != 0) {
+    *err_msg += ".. failed to get device handle: " + ErrCodeToErrMsg(ret);
+    *err_msg += ".. failed to setup " + GetId();
+    Teardown(err_msg);  // Escape sequence. No return check.
+    return false;
+  }
+
   interface_number_ = GetInterfaceNumber();
-  is_claimed_ = ClaimInterface(err_msg);
-  if (!is_claimed_) {
-    *err_msg += ".. failed to claim the interface number " +
-                std::to_string(interface_number_);
+
+  if (!DetachKernelDriver(err_msg)) {
+    *err_msg += ".. failed to setup " + GetId();
+    Teardown(err_msg);  // Escape sequence. No return check.
     return false;
   }
 
-  return true;
-}
+  /*  TODO(porce): Investigate the need of configuring Huddly camera
+    int configuration = 1;  // bConfigurationValue
+    if ((ret = libusb_set_configuration(dev_handle_, configuration)) != 0) {
+      *err_msg = ErrCodeToErrMsg(ret);
+      return false;
+    }
+  */
 
-bool UsbDevice::Setup(uint16_t vendor_id,
-                      uint16_t product_id,
-                      std::string* err_msg) {
-  vendor_id_ = vendor_id;
-  product_id_ = product_id;
-  return Setup(err_msg);
-}
+  if (!ClaimInterface(err_msg)) {
+    *err_msg += ".. failed to setup " + GetId();
+    Teardown(err_msg);  // Escape sequence. No return check.
+    return false;
+  }
+
+  is_setup_ = true;
+  return true;
+}  // namespace huddly
 
 bool UsbDevice::Teardown(std::string* err_msg) {
   // Multiple steps in tear down process.
   // Even if one step fails, the next step continues.
   // Error messages are appended.
 
-  bool is_success = ReleaseInterface(err_msg);
+  bool ret_release = ReleaseInterface(err_msg);
+  bool ret_detach = ReattachKernelDriver(err_msg);
 
   if (dev_handle_) {
     libusb_close(dev_handle_);
+    dev_handle_ = nullptr;
+  }
+  if (dev_) {
+    libusb_unref_device(dev_);
+    dev_ = nullptr;
   }
   if (context_) {
     libusb_exit(context_);
+    context_ = nullptr;
   }
 
-  return is_success;
+  // Reset POD that are not handled in above subroutines.
+  vendor_id_ = 0;
+  product_id_ = 0;
+  interface_number_ = 0;
+  is_setup_ = false;
+
+  return ret_release && ret_detach;
 }
 
 bool UsbDevice::ControlTransfer(uint8_t request_type,
@@ -103,17 +177,25 @@ bool UsbDevice::ControlTransfer(uint8_t request_type,
 
   const int kUsbReadWriteTimeOut = 1000;  // msec
 
-  /*  Debug line. Keep this till code freeze
-      TODO(porce): Delete by May 12 2017
+#ifdef DEV_DEBUG
+  {
+    // USB Mon Debug.
     printf(
-        "DBG: LIBUSB_CONTROL_TRANSFER: devhandle %p  reqtype %02x req %02x value
-    "
-        "%02x "
-        "idx "
-        "%02x ::  datalen %u data_first_char %c\n",
-        dev_handle_, libusb_request_type, libusb_request, libusb_value,
-        libusb_index, data_len, data[0]);
-  */
+        "[DBG] LIBUSB MON: "
+        "reqtype:req:val:idx:dlen :: data :: "
+        "%02x %02x %04x %04x %04x :: ",
+        libusb_request_type, libusb_request, libusb_value, libusb_index,
+        data_len);
+    const uint32_t kBytesToPrint = 4;
+    uint32_t trunc_len = std::min(data_len, kBytesToPrint);
+
+    for (uint32_t idx = 0; idx < trunc_len; idx++) {
+      printf("%02x ", data[idx]);
+    }
+    printf(" :: devhandle %p\n", dev_handle_);
+  }
+#endif  // DEV_DEBUG
+
   int ret = libusb_control_transfer(dev_handle_, libusb_request_type,
                                     libusb_request, libusb_value, libusb_index,
                                     data, data_len, kUsbReadWriteTimeOut);
@@ -137,6 +219,7 @@ bool UsbDevice::ControlTransfer(uint8_t request_type,
   *err_msg += err_msg_buf;
   return false;
 }
+
 std::string UsbDevice::GetId() const {
   return UsbIdToString(vendor_id_, product_id_);
 }
@@ -150,128 +233,147 @@ std::string UsbDevice::ErrCodeToErrMsg(int err_code) const {
   return err_msg;
 }
 
-bool UsbDevice::GetDevHandle(std::string* err_msg) {
-  // Get device list
-  // TODO(porce): Use unique_ptr and custom deleter
+libusb_context* UsbDevice::GetContext(std::string* err_msg) {
+  libusb_context* ctx;
+  if (libusb_init(&ctx) == 0) {  // success
+    libusb_set_debug(ctx, LIBUSB_LOG_LEVEL_INFO);
+    return ctx;
+  }
+
+  *err_msg += ".. failed to initialize libusb_context .. failed to setup ";
+  return nullptr;
+}
+
+libusb_device* UsbDevice::GetDevice(libusb_context* ctx, std::string* err_msg) {
   libusb_device** dev_list;
-  int list_cnt = libusb_get_device_list(context_, &dev_list);
+  libusb_device* dev = nullptr;
+
+  int list_cnt = libusb_get_device_list(ctx, &dev_list);
   if (list_cnt < 0) {
     *err_msg += ".. failed to get device list: " + ErrCodeToErrMsg(list_cnt);
-    return false;
+    std::cout << *err_msg << std::endl;
+    return nullptr;
   }
 
-  if (list_cnt == 0) {
-    *err_msg += ".. no usb device is found";
-    libusb_free_device_list(dev_list, 1);  // unref by 1
-    return false;
-  }
-
-  libusb_device* dev;
   libusb_device_descriptor desc;
-  bool is_found = false;
   for (int idx = 0; idx < list_cnt; idx++) {
-    dev = dev_list[idx];
-    int ret = libusb_get_device_descriptor(dev, &desc);
+    libusb_device* dev_tmp = dev_list[idx];
+
+    int ret = libusb_get_device_descriptor(dev_tmp, &desc);
     if (ret != 0) {
       std::cout << ".. failed to get device descriptor: "
                 << ErrCodeToErrMsg(ret) << std::endl;
+      // Don't give up yet.
       continue;
     }
+
     if (desc.idVendor == vendor_id_ && desc.idProduct == product_id_) {
-      // Supported use case: one or zero camera connected to a single box.
-      // TODO(porce): Extend this upon use case change.
-      is_found = true;
-      break;
+      // supported use case: one or zero camera connected to a single box.
+      // TODO(porce): extend this upon use case change.
+      dev = dev_tmp;
+      libusb_ref_device(dev);
+      break;  // Found. No need to loop further.
     }
   }
 
-  if (!is_found) {
-    *err_msg +=
-        ".. failed to get device handle. no device found with " + GetId();
-    libusb_free_device_list(dev_list, 1);  // unref by 1
-    return false;
-  }
-
-  int ret = libusb_open(dev, &dev_handle_);
-  if (ret != 0) {
-    *err_msg += ".. failed to get device handle: " + ErrCodeToErrMsg(ret);
-    libusb_free_device_list(dev_list, 1);  // unref by 1
-    return false;
-  }
-
-  dev_ = dev;
-  libusb_ref_device(dev);
   libusb_free_device_list(dev_list, 1);  // unref by 1
+
+  if (dev == nullptr) {
+    *err_msg += ".. failed to get device: not found";
+  }
+
+  return dev;
+}
+
+bool UsbDevice::DetachKernelDriver(std::string* err_msg) {
+  int ret = libusb_kernel_driver_active(dev_handle_, interface_number_);
+  if (ret < 0) {
+    *err_msg += ".. failed to check if the kernel driver is active: " +
+                ErrCodeToErrMsg(ret);
+    return false;
+  }
+
+  if (ret > 1) {
+    // Undocumented return value.
+    *err_msg += ".. invalid return value from libusb_kernel_driver_active(): ";
+    *err_msg += std::to_string(ret);
+    return false;
+  }
+
+  if (ret == 0) {
+    was_kernel_driver_active_ = false;
+    return true;
+  }
+
+  // ret == 1: A kernel driver is active. Detach it.
+  was_kernel_driver_active_ = true;
+
+  ret = libusb_detach_kernel_driver(dev_handle_, interface_number_);
+  if (ret == 0) {
+    // Successful detach.
+    return true;
+  }
+
+  *err_msg +=
+      ".. failed to detach active kernel driver: " + ErrCodeToErrMsg(ret);
+  return false;
+}
+
+bool UsbDevice::ReattachKernelDriver(std::string* err_msg) {
+  if (!was_kernel_driver_active_) {
+    return true;  // No need to reattach.
+  }
+
+  if (dev_handle_ == nullptr) {
+    // Case of rebooting
+    was_kernel_driver_active_ = false;
+
+    return true;
+  }
+  int ret = libusb_attach_kernel_driver(dev_handle_, interface_number_);
+  if (ret != 0) {
+    *err_msg +=
+        ".. failed to reattach detached kernel driver: " + ErrCodeToErrMsg(ret);
+    return false;
+  }
+
+  // Reattached.
+  was_kernel_driver_active_ = false;
   return true;
 }
 
 bool UsbDevice::ClaimInterface(std::string* err_msg) {
-  int ret = libusb_kernel_driver_active(dev_handle_, interface_number_);
-  if (ret == 0) {
-    was_kernel_driver_active_ = false;
-    // No need to detach.
-  } else if (ret < 0) {
-    *err_msg += ".. failed to check if the kernel driver is active: " +
-                ErrCodeToErrMsg(ret);
-    return false;
-  } else if (ret == 1) {
-    // A kernel driver is active.
-    was_kernel_driver_active_ = true;
-    if ((ret = libusb_detach_kernel_driver(dev_handle_, interface_number_)) !=
-        0) {
-      *err_msg +=
-          ".. failed to detach active kernel driver: " + ErrCodeToErrMsg(ret);
-      return false;
-    }
-  }
-
-  // Now the kernel driver is detached.
-
-  /*  TODO(porce): Investigate the need of configuring Huddly camera
-    int configuration = 1;  // bConfigurationValue
-    if ((ret = libusb_set_configuration(dev_handle_, configuration)) != 0) {
-      *err_msg = ErrCodeToErrMsg(ret);
-      return false;
-    }
-    // Now configured.
-  */
-
-  if ((ret = libusb_claim_interface(dev_handle_, interface_number_)) != 0) {
+  int ret = libusb_claim_interface(dev_handle_, interface_number_);
+  is_claimed_ = (ret == 0);
+  if (!is_claimed_) {
     *err_msg += ".. failed to claim: " + ErrCodeToErrMsg(ret);
-    return false;
   }
-
-  // Now device handle's interface is claimed.
-  return true;
+  return is_claimed_;
 }
 
 bool UsbDevice::ReleaseInterface(std::string* err_msg) {
-  bool is_success = true;
-
-  if (is_claimed_) {
-    int ret = libusb_release_interface(dev_handle_, interface_number_);
-    if (ret != 0) {
-      *err_msg += ".. failed to release: " + ErrCodeToErrMsg(ret);
-      is_success = false;
-    }
+  if (!is_claimed_) {
+    return true;  // Nothing to relase.
   }
-  is_claimed_ = false;
 
-  if (was_kernel_driver_active_) {
-    int ret = libusb_attach_kernel_driver(dev_handle_, interface_number_);
-    if (ret != 0) {
-      *err_msg += ".. failed to reattach detached kernel driver: " +
-                  ErrCodeToErrMsg(ret);
-      is_success = false;
-    }
+  if (dev_handle_ == nullptr) {
+    // Case of rebooting
+    is_claimed_ = false;
+    return true;
   }
-  was_kernel_driver_active_ = false;
+  int ret = libusb_release_interface(dev_handle_, interface_number_);
+  if (ret == 0) {
+    is_claimed_ = false;
+    return true;
+  }
 
-  return is_success;
+  *err_msg += ".. failed to release: " + ErrCodeToErrMsg(ret);
+  return false;
 }
 
 int UsbDevice::GetInterfaceNumber() const {
   // TODO(porce): put some proper logic..
+  // Huddly camera firmware updater uses only interface 0.
   return 0;
 }
 
