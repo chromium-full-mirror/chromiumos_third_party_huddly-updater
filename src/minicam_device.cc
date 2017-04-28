@@ -18,49 +18,63 @@ namespace huddly {
 const uint16_t kVendorId = 0x2bd9;
 const uint16_t kProductIdApp = 0x0011;
 const uint16_t kProductIdBootloader = 0x0010;
-const uint32_t kChunkSize = 500;  // bytes. USB 3.0 maximum packet size is 512.
+const uint16_t kProductIdInvalid = 0x0000;
+// USB 3.0 max packet size (512 bytes) minus vendor command header.
+const uint32_t kChunkSizeBytes = 500;
 const uint64_t kMv2ReadTimeout = 500;
-const uint64_t kTypicalCommitTime = 30000;  // msec, or 30 sec.
+const uint64_t kTypicalCommitTimeMs = 30000;
 
-MinicamDevice::MinicamDevice(uint16_t product_id)
-    : vendor_id_(kVendorId), product_id_(product_id) {}
-
-MinicamDevice::~MinicamDevice() {
-  std::string err_msg;
-  if (!Teardown(&err_msg)) {
-    std::cout << ".. failed to teardown" << std::endl;
+uint16_t BootModeToProductId(BootMode mode) {
+  switch (mode) {
+    case BootMode::APP:
+      return kProductIdApp;
+    case BootMode::BOOTLOADER:
+      return kProductIdBootloader;
+    case BootMode::BOOTLOADER_STICKY:
+    case BootMode::UNKNOWN:
+    default:
+      return kProductIdInvalid;
   }
 }
 
-bool MinicamDevice::Setup(std::string* err_msg) {
-  if (!usbdev_.Setup(vendor_id_, product_id_, err_msg)) {
-    *err_msg += ".. failed to setup";
+MinicamDevice::MinicamDevice(uint16_t vendor_id, uint16_t product_id)
+    : UsbDevice(vendor_id, product_id) {}
+
+MinicamDevice::~MinicamDevice() {}
+
+bool MinicamDevice::CheckIfExists() {
+  bool result = false;
+  std::string err_msg;
+  if (!Exists(&result, &err_msg)) {
+    // Error while checking. This does not mean check failed and it turned out
+    // that the device does not exist.
+    err_msg += ".. failed to check if the device exists or not";
+    std::cout << err_msg << std::endl;
+  }
+  return result;
+}
+
+bool MinicamDevice::RebootInMode(BootMode boot_mode, std::string* err_msg) {
+  std::cout << ".. setting boot mode: " << BootModeStr(boot_mode) << std::endl;
+
+  if (!SetBootMode(boot_mode, err_msg)) {
+    *err_msg += ".. failed to rebooting in mode: ";
+    *err_msg += BootModeStr(boot_mode);
+
+    return false;
+  }
+
+  std::cout << ".. done setting boot mode. rebooting " << std::endl;
+
+  if (!Reboot(err_msg)) {
+    *err_msg += ".. failed to reboot in mode: ";
+    *err_msg += BootModeStr(boot_mode);
     return false;
   }
   return true;
 }
-bool MinicamDevice::Setup(uint16_t product_id, std::string* err_msg) {
-  vendor_id_ = kVendorId;
-  product_id_ = product_id;
-  return Setup(err_msg);
-}
 
-bool MinicamDevice::Teardown(std::string* err_msg) {
-  return usbdev_.Teardown(err_msg);
-}
-
-bool MinicamDevice::RebootInMode(BootMode boot_mode,
-                                 std::string* err_msg) const {
-  if (SetBootMode(boot_mode, err_msg) && Reboot(err_msg)) {
-    return true;
-  }
-
-  *err_msg += ".. failed in rebooting in mode: ";
-  *err_msg += BootModeStr(boot_mode);
-  return false;
-}
-
-bool MinicamDevice::Reboot(std::string* err_msg) const {
+bool MinicamDevice::Reboot(std::string* err_msg) {
   // TODO(porce): Should we use 0x03(all) or 0x02 (MV2)?
   uint8_t data = 0x03;  // For all devices.
 
@@ -69,27 +83,36 @@ bool MinicamDevice::Reboot(std::string* err_msg) const {
     return false;
   }
 
+  // No return value check. The device is just lost because of the reboot.
+  // It is normal to have a return value of false.
+  Teardown(err_msg);
   return true;
 }
 
 bool MinicamDevice::WriteImage(int data_len,
                                uint8_t* data,
                                std::string* err_msg) const {
-  /*  Postpone the commit process; it is potentially dangerous.
-      TODO(porce): Reenable when sufficient number of units are procured.
-    if (AllocateBuffer(data_len, err_msg) &&
-        UploadImage(data_len, data, err_msg) && Mv2Commit(0, data_len, err_msg))
-    { return true;
-    }
-  */
-  if (AllocateBuffer(data_len, err_msg) &&
-      UploadImage(data_len, data, err_msg)) {
-    std::cout << ".. succeeded WriteImage, with omitting commit." << std::endl;
-    return true;
+  std::cout << ".. allocating buffer" << std::endl;
+  if (!AllocateBuffer(data_len, err_msg)) {
+    *err_msg += ".. failed to allocate buffer";
+    std::cout << *err_msg << std::endl;
+    return false;
+  }
+  std::cout << ".. done allocating buffer. uploading image: ";
+  if (!UploadImage(data_len, data, err_msg)) {
+    *err_msg += ".. failed to upload image";
+    std::cout << *err_msg << std::endl;
+    return false;
+  }
+  std::cout << ".. done uploading. committing" << std::endl;
+  if (!Mv2Commit(0, data_len, err_msg)) {
+    *err_msg += ".. failed to commit";
+    std::cout << *err_msg << std::endl;
+    return false;
   }
 
-  *err_msg += ".. failed to WriteImage";
-  return false;
+  std::cout << ".. done committing" << std::endl;
+  return true;
 }
 
 bool MinicamDevice::GetHwRevision(uint8_t* hw_rev, std::string* err_msg) const {
@@ -107,37 +130,55 @@ bool MinicamDevice::VendorRead(VendorRequest vendor_request,
                                uint32_t data_len,
                                uint8_t* data,
                                std::string* err_msg) const {
-  const uint8_t request_type = 0xc0;
+  const uint8_t kRequestType = 0xc0;
   const uint8_t request = static_cast<uint8_t>(vendor_request);
-  const uint16_t address = 0x00;
+  const uint16_t kAddress = 0x00;
 
-  // TODO(porce): Implement retry logic.
-  if (!usbdev_.ControlTransfer(request_type, request, address, data_len, data,
-                               err_msg)) {
-    *err_msg += ".. failed in vendor read: " + std::to_string(request);
-    return false;
+  const uint8_t kUsbRetryLimit = 20;
+  for (uint8_t retry = 0; retry < kUsbRetryLimit; retry++) {
+    if (ControlTransfer(kRequestType, request, kAddress, data_len, data,
+                        err_msg)) {
+      if (retry > 0) {
+        std::cout << ".. vendor read successful after " << retry << " retries"
+                  << std::endl;
+      }
+      return true;
+    }
+    // Possible errors are Pipe or IO related.
+    SleepMilliSec(500);
   }
-  return true;
+  *err_msg += ".. failed in vendor read: " + std::to_string(request);
+  return false;
 }
 
 bool MinicamDevice::VendorWrite(VendorRequest vendor_request,
                                 uint32_t data_len,
                                 uint8_t* data,
                                 std::string* err_msg) const {
-  const uint8_t request_type = 0x40;
+  const uint8_t kRequestType = 0x40;
   const uint8_t request = static_cast<uint8_t>(vendor_request);
   uint32_t address = 0x00;
   if (vendor_request == VendorRequest::REBOOT) {
     address = 0x01;
   }
 
-  // TODO(porce): Implement retry logic.
-  if (!usbdev_.ControlTransfer(request_type, request, address, data_len, data,
-                               err_msg)) {
-    *err_msg += ".. failed in vendor write: " + std::to_string(request);
-    return false;
+  const uint8_t kUsbRetryLimit = 20;
+  for (uint8_t retry = 0; retry < kUsbRetryLimit; retry++) {
+    if (ControlTransfer(kRequestType, request, address, data_len, data,
+                        err_msg)) {
+      if (retry > 0) {
+        std::cout << ".. vendor write successful after " << retry << " retries"
+                  << std::endl;
+      }
+      return true;
+    }
+
+    // Possible errors are Pipe or IO related.
+    SleepMilliSec(500);
   }
-  return true;
+
+  *err_msg += ".. failed in vendor write: " + std::to_string(request);
+  return false;
 }
 
 bool MinicamDevice::GetBootMode(BootMode* boot_mode,
@@ -157,7 +198,6 @@ bool MinicamDevice::GetBootMode(BootMode* boot_mode,
 bool MinicamDevice::SetBootMode(BootMode boot_mode,
                                 std::string* err_msg) const {
   uint8_t data;
-
   data = static_cast<uint8_t>(boot_mode);
   if (!VendorWrite(VendorRequest::BOOT_MODE, sizeof(data), &data, err_msg)) {
     *err_msg += ".. failed to set boot mode";
@@ -177,7 +217,7 @@ bool MinicamDevice::IsBootloaderMode() const {
   return boot_mode == BootMode::BOOTLOADER;
 }
 
-std::string MinicamDevice::BootModeStr(BootMode boot_mode) const {
+std::string BootModeStr(BootMode boot_mode) {
   switch (boot_mode) {
     case BootMode::APP:
       return "APP";
@@ -212,8 +252,9 @@ bool MinicamDevice::AllocateBuffer(uint32_t size, std::string* err_msg) const {
 bool MinicamDevice::UploadImage(uint32_t data_len,
                                 uint8_t* data,
                                 std::string* err_msg) const {
-  for (uint32_t offset = 0; offset < data_len; offset += kChunkSize) {
-    uint32_t chunk_size = kChunkSize;
+  uint32_t sum = 0;
+  for (uint32_t offset = 0; offset < data_len; offset += kChunkSizeBytes) {
+    uint32_t chunk_size = kChunkSizeBytes;
     if (offset + chunk_size > data_len) {
       // May happen at the tail of the data
       chunk_size = (data_len - offset);
@@ -229,9 +270,10 @@ bool MinicamDevice::UploadImage(uint32_t data_len,
       *err_msg += msg;
       continue;
     }
+    sum += chunk_size;
   }
 
-  std::cout << "[Done]" << std::endl;
+  std::cout << "[Done] wrote " << sum << " bytes" << std::endl;
   return true;
 }
 
@@ -239,14 +281,17 @@ void MinicamDevice::ShowProgress(uint32_t offset,
                                  uint32_t chunk_size,
                                  uint32_t data_len) const {
   // Humble version of showing ShowProgress.
+  // Show percentage progress only upon a change in 10% unit.
   // TODO(porce): Beautify this.
-
   if (data_len == 0)
     return;
 
+  static uint32_t percent_prev = 0;
   uint32_t percent = 100 * offset / data_len;
-  std::cout << ".." << percent << "%..";
-  return;
+  if (percent % 10 == 0 && percent != percent_prev) {
+    std::cout << percent << "%..";
+    percent_prev = percent;
+  }
 }
 
 std::string MinicamDevice::QueryFirmwareVersion() const {
@@ -273,7 +318,7 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
   const uint32_t kCmdLen = 9;
   uint8_t cmd[kCmdLen];
   uint32_t offset_le = htole32(offset);
-  uint32_t size_le = htole32(offset);
+  uint32_t size_le = htole32(size);
   cmd[0] = 'W';
   memcpy(cmd + 1, &offset_le, sizeof(offset_le));
   memcpy(cmd + 1 + sizeof(offset_le), &size_le, sizeof(size_le));
@@ -286,7 +331,7 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
 
   SleepMilliSec(2000);  // 2 sec.
 
-  uint64_t kTimeout = 2 * kTypicalCommitTime;
+  uint64_t kTimeout = 2 * kTypicalCommitTimeMs;
   uint64_t expiry = GetNowMilliSec() + kTimeout;
 
   while (GetNowMilliSec() < expiry) {
@@ -304,6 +349,7 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
     switch (status) {
       case 'e':
         // TODO(porce): ShowProgress.
+        std::cout << "[e]";
         break;
       case 'E':
         // TODO(porce): ShowProgress.
@@ -311,19 +357,20 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
         break;
       case 'w':
         // TODO(porce): ShowProgress.
+        std::cout << "[w]";
         break;
       case 'W':
-        std::cout << "Write done" << std::endl;
+        std::cout << ".. Write done" << std::endl;
         return true;
         break;
       case 'f':
-        std::cout << "Erase failure" << std::endl;
+        std::cout << ".. Erase failure" << std::endl;
         return false;
       case 'F':
-        std::cout << "Flash failure" << std::endl;
+        std::cout << ".. Flash failure" << std::endl;
         return false;
       case 'V':
-        std::cout << "Verification failed" << std::endl;
+        std::cout << ".. Verification failed" << std::endl;
         return false;
       default:
         char msg[100];

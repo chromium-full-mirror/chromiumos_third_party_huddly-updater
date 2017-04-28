@@ -42,7 +42,6 @@ bool Firmware::IsReady(std::string* err_msg) const {
     *err_msg = "firmware pkg not ready: " + std::string(kHuddlyPkgPath);
     return false;
   }
-  std::cout << 12 << std::endl;
   if (!Uncompress(firmware_path_, err_msg)) {
     return false;
   }

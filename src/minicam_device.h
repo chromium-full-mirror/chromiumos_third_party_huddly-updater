@@ -40,19 +40,20 @@ enum class BootMode : uint8_t {
   UNKNOWN = 0x10,
 };
 
-// TODO(porce): Explore if this may / should inherit from UsbDevice class
-class MinicamDevice {
+uint16_t BootModeToProductId(BootMode mode);
+std::string BootModeStr(BootMode boot_mode);
+
+class MinicamDevice : public UsbDevice {
  public:
-  explicit MinicamDevice(uint16_t product_id);
+  MinicamDevice(uint16_t vendor_id, uint16_t product_id);
   ~MinicamDevice();
 
-  bool Setup(std::string* err_msg);
-  bool Setup(uint16_t product_id, std::string* err_msg);
-  bool Teardown(std::string* err_msg);
-  bool RebootInMode(BootMode boot_mode, std::string* err_msg) const;
-  bool Reboot(std::string* err_msg) const;
+  bool CheckIfExists();
+  bool RebootInMode(BootMode boot_mode, std::string* err_msg);
+  bool Reboot(std::string* err_msg);
   bool WriteImage(int data_len, uint8_t* data, std::string* err_msg) const;
   bool GetHwRevision(uint8_t* hw_rev, std::string* err_msg) const;
+  std::string QueryFirmwareVersion() const;
 
  private:
   MinicamDevice(const MinicamDevice&) = delete;
@@ -70,7 +71,6 @@ class MinicamDevice {
   bool GetBootMode(BootMode* boot_mode, std::string* err_msg) const;
   bool SetBootMode(BootMode boot_mode, std::string* err_msg) const;
   bool IsBootloaderMode() const;
-  std::string BootModeStr(BootMode boot_mode) const;
 
   bool AllocateBuffer(uint32_t size, std::string* err_msg) const;
   bool UploadImage(uint32_t data_len,
@@ -80,7 +80,6 @@ class MinicamDevice {
   void ShowProgress(uint32_t offset,
                     uint32_t chunk_size,
                     uint32_t data_len) const;
-  std::string QueryFirmwareVersion() const;
 
   bool Mv2Commit(uint32_t offet, uint32_t size, std::string* err_msg) const;
   bool Mv2WriteChunk(uint32_t offset,
@@ -97,7 +96,6 @@ class MinicamDevice {
 
   uint16_t vendor_id_;
   uint16_t product_id_;
-  UsbDevice usbdev_;
 };
 
 }  // namespace huddly
