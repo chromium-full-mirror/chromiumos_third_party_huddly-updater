@@ -12,11 +12,29 @@
 #include "tools.h"
 
 namespace huddly {
+
 Flasher::Flasher(const Firmware& firmware, MinicamDevice* minidev)
     : firmware_(firmware), minidev_(minidev) {}
-Flasher::~Flasher() {}
+
+Flasher::~Flasher() {
+  std::string err_msg;
+  if (!minidev_->Teardown(&err_msg)) {
+    err_msg += ".. failed to tear down the minidev Flasher used";
+    std::cout << err_msg << std::endl;
+  }
+}
 
 bool Flasher::FlashApp(std::string* err_msg) const {
+  if (!minidev_->Setup(err_msg)) {
+    *err_msg += ".. failed to flash app in minidev setting up";
+    return false;
+  }
+
+  if (!IsEligible(err_msg)) {
+    *err_msg += ".. upgrade not eligible";
+    return false;
+  }
+
   uint32_t file_size;
   if (!GetFileSize(firmware_.app_path(), &file_size, err_msg)) {
     *err_msg += ".. failed to flash app. unknown file size";
@@ -42,6 +60,28 @@ bool Flasher::FlashApp(std::string* err_msg) const {
     *err_msg += ".. failed to flash app.";
     return false;
   }
+
+  if (!minidev_->Teardown(err_msg)) {
+    *err_msg += ".. failed to tear down the minidev Flasher used";
+    return false;
+  }
+  return true;
+}
+
+bool Flasher::IsEligible(std::string* err_msg) const {
+  uint8_t hw_rev;
+  if (!minidev_->GetHwRevision(&hw_rev, err_msg)) {
+    *err_msg += ". failed to get hardware revision";
+    return false;
+  }
+  // TODO(porce): Test should be done against the manifest.json.
+  const uint8_t kSupportedHwRev = 6;
+  if (hw_rev != kSupportedHwRev) {
+    *err_msg += ".. unsupported hardware revision: " + std::to_string(hw_rev);
+    return false;
+  }
+
+  // TODO(porce): Check the firmware version match.
 
   return true;
 }

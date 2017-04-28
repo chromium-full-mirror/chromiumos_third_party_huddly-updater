@@ -26,6 +26,10 @@ class Flasher {
   Flasher(const Flasher&) = delete;
   Flasher& operator=(const Flasher&) = delete;
 
+  // Test if the peripheral needs to be upgraded.
+  bool IsEligible(std::string* err_msg) const;
+
+  // TODO(porce): make pointers / references protected during active flash op.
   const Firmware& firmware_;
   MinicamDevice* minidev_;
 };
