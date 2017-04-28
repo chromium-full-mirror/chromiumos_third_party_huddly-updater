@@ -11,6 +11,12 @@ LDLIBS += $(PC_LIBS)
 
 CPPFLAGS += $(PC_CFLAGS)
 
-CXX_BINARY(huddly-updater): src/main.o src/firmware.o src/tools.o src/usb_device.o src/flasher.o src/minicam_device.o
+CXX_BINARY(huddly-updater): \
+	src/firmware.o \
+	src/flasher.o \
+	src/main.o \
+	src/minicam_device.o \
+	src/tools.o \
+	src/usb_device.o
 all: CXX_BINARY(huddly-updater)
 clean: CLEAN(CXX_BINARY(huddly-updater))
