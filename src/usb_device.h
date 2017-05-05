@@ -30,7 +30,8 @@ class UsbDevice {
 
   bool ControlTransfer(uint8_t request_type,
                        uint8_t request,
-                       uint32_t address,
+                       uint16_t value,
+                       uint16_t index,
                        uint32_t data_len,
                        uint8_t* data,
                        std::string* err_msg) const;

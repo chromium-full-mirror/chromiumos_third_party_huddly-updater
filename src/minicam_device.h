@@ -51,9 +51,23 @@ class MinicamDevice : public UsbDevice {
   bool CheckIfExists();
   bool RebootInMode(BootMode boot_mode, std::string* err_msg);
   bool Reboot(std::string* err_msg);
-  bool WriteImage(int data_len, uint8_t* data, std::string* err_msg) const;
-  bool GetHwRevision(uint8_t* hw_rev, std::string* err_msg) const;
+  bool WriteImage(int data_len,
+                  uint8_t* data,
+                  std::string* err_msg,
+                  bool dry_run = false) const;
+
+  // Show hardware revision and the firmware versions of bootloader and app
+  // firmware.
+  void ShowInfo();
+
+  // Works in any mode.
+  bool GetHwRevision(std::string* hw_rev_str, std::string* err_msg) const;
+
+  // Works in Bootloader mode.
   std::string QueryFirmwareVersion() const;
+
+  // Works in App mode only.
+  bool GetVersion(std::string* app_ver, std::string* bootloader_ver);
 
  private:
   MinicamDevice(const MinicamDevice&) = delete;
@@ -77,9 +91,7 @@ class MinicamDevice : public UsbDevice {
                    uint8_t* data,
                    std::string* err_msg) const;
 
-  void ShowProgress(uint32_t offset,
-                    uint32_t chunk_size,
-                    uint32_t data_len) const;
+  void ShowProgress(uint32_t offset, uint32_t data_len) const;
 
   bool Mv2Commit(uint32_t offet, uint32_t size, std::string* err_msg) const;
   bool Mv2WriteChunk(uint32_t offset,
@@ -93,9 +105,6 @@ class MinicamDevice : public UsbDevice {
                   uint32_t retries,
                   std::string* err_msg) const;
   bool Mv2GetAck() const;
-
-  uint16_t vendor_id_;
-  uint16_t product_id_;
 };
 
 }  // namespace huddly

@@ -2,14 +2,16 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "minicam_device.h"
+
 #include <endian.h>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <memory>
 
-#include "minicam_device.h"
 #include "stdint.h"
+
 #include "tools.h"
 #include "usb_device.h"
 
@@ -91,20 +93,29 @@ bool MinicamDevice::Reboot(std::string* err_msg) {
 
 bool MinicamDevice::WriteImage(int data_len,
                                uint8_t* data,
-                               std::string* err_msg) const {
+                               std::string* err_msg,
+                               bool dry_run) const {
   std::cout << ".. allocating buffer" << std::endl;
   if (!AllocateBuffer(data_len, err_msg)) {
     *err_msg += ".. failed to allocate buffer";
     std::cout << *err_msg << std::endl;
     return false;
   }
-  std::cout << ".. done allocating buffer. uploading image: ";
+  std::cout << ".. done allocating buffer. uploading image " << data_len
+            << " bytes" << std::endl
+            << "    ";
   if (!UploadImage(data_len, data, err_msg)) {
     *err_msg += ".. failed to upload image";
     std::cout << *err_msg << std::endl;
     return false;
   }
-  std::cout << ".. done uploading. committing" << std::endl;
+
+  if (dry_run) {
+    std::cout << ".. dry run mode. Skip committing" << std::endl;
+    return true;
+  }
+
+  std::cout << ".. done uploading. committing... " << std::endl << "    ";
   if (!Mv2Commit(0, data_len, err_msg)) {
     *err_msg += ".. failed to commit";
     std::cout << *err_msg << std::endl;
@@ -115,13 +126,86 @@ bool MinicamDevice::WriteImage(int data_len,
   return true;
 }
 
-bool MinicamDevice::GetHwRevision(uint8_t* hw_rev, std::string* err_msg) const {
-  if (!VendorRead(VendorRequest::HW_REV, static_cast<uint32_t>(sizeof(*hw_rev)),
-                  hw_rev, err_msg)) {
+void MinicamDevice::ShowInfo() {
+  std::string err_msg;
+  std::string hw_rev;
+  std::string bootloader_ver;
+  std::string app_ver;
+
+  if (!GetHwRevision(&hw_rev, &err_msg)) {
+    std::cout << err_msg << std::endl;
+    return;
+  }
+  GetVersion(&app_ver, &bootloader_ver);
+
+  printf(
+      "\n"
+      "Camera Peripheral:\n"
+      "  bootloader:  %s \n"
+      "  app:         %s \n"
+      "  hw_rev:      %s \n",
+      bootloader_ver.c_str(), app_ver.c_str(), hw_rev.c_str());
+}
+
+bool MinicamDevice::GetHwRevision(std::string* hw_rev_str,
+                                  std::string* err_msg) const {
+  uint8_t hw_rev;
+  if (!VendorRead(VendorRequest::HW_REV, static_cast<uint32_t>(sizeof(hw_rev)),
+                  &hw_rev, err_msg)) {
     *err_msg += ".. failed in querying hardware revision";
-    *hw_rev = 0;
+    *hw_rev_str = "unknown";
     return false;
   }
+
+  *hw_rev_str = std::to_string(hw_rev);
+  return true;
+}
+
+std::string MinicamDevice::QueryFirmwareVersion() const {
+  // For Bootloader mode only.
+  const int kVersionBytes = 3;
+  uint8_t data[kVersionBytes];
+  std::string err_msg;
+
+  if (!VendorRead(VendorRequest::VERSION, kVersionBytes, data, &err_msg)) {
+    std::cout << ".. failed in vendor reading: " << err_msg << std::endl;
+    return "unknown";  //
+  }
+
+  char buffer[kVersionBytes * 2 + 1];
+  snprintf(buffer, sizeof(buffer), "%02x%02x%02x", data[0], data[1], data[2]);
+  return buffer;
+}
+
+bool MinicamDevice::GetVersion(std::string* app_ver,
+                               std::string* bootloader_ver) {
+  // This API is known to work only in App mode.
+  std::string err_msg;
+
+  // UVC command method queries bootloader and app versions together.
+  const uint8_t kRequestType = 0xa1;  // UVC command.
+  const uint8_t kRequest = 0x81;      // GET_CUR.
+  const uint16_t kValue = 0x1300;     // XU number 19
+  const uint16_t kIndex = 0x0400;     // Unit number 4, interace 0.
+  const uint32_t kDataLen = 8;
+  uint8_t data[kDataLen];
+
+  bool ret = ControlTransfer(kRequestType, kRequest, kValue, kIndex, kDataLen,
+                             data, &err_msg);
+  if (!ret) {
+    // Possible errors are Pipe or IO related.
+    std::cout << err_msg << std::endl;
+    *app_ver = "unknown";
+    *bootloader_ver = "unknown";
+    return false;
+  }
+
+  char str[6];
+  // Decimal presentation.
+  snprintf(str, sizeof(str), "%u.%u.%u", data[3], data[2], data[1]);
+  *app_ver = str;
+  snprintf(str, sizeof(str), "%u.%u.%u", data[7], data[6], data[5]);
+  *bootloader_ver = str;
 
   return true;
 }
@@ -131,12 +215,14 @@ bool MinicamDevice::VendorRead(VendorRequest vendor_request,
                                uint8_t* data,
                                std::string* err_msg) const {
   const uint8_t kRequestType = 0xc0;
-  const uint8_t request = static_cast<uint8_t>(vendor_request);
+  const uint8_t request = static_cast<uint8_t>(vendor_request) & 0xff;
   const uint16_t kAddress = 0x00;
+  uint16_t value = kAddress & 0xffff;
+  uint16_t index = (kAddress >> 16) & 0xffff;
 
   const uint8_t kUsbRetryLimit = 20;
   for (uint8_t retry = 0; retry < kUsbRetryLimit; retry++) {
-    if (ControlTransfer(kRequestType, request, kAddress, data_len, data,
+    if (ControlTransfer(kRequestType, request, value, index, data_len, data,
                         err_msg)) {
       if (retry > 0) {
         std::cout << ".. vendor read successful after " << retry << " retries"
@@ -157,14 +243,16 @@ bool MinicamDevice::VendorWrite(VendorRequest vendor_request,
                                 std::string* err_msg) const {
   const uint8_t kRequestType = 0x40;
   const uint8_t request = static_cast<uint8_t>(vendor_request);
-  uint32_t address = 0x00;
+  uint16_t address = 0x00;
   if (vendor_request == VendorRequest::REBOOT) {
     address = 0x01;
   }
+  uint16_t value = address & 0xffff;
+  uint16_t index = (address >> 16) & 0xffff;
 
   const uint8_t kUsbRetryLimit = 20;
   for (uint8_t retry = 0; retry < kUsbRetryLimit; retry++) {
-    if (ControlTransfer(kRequestType, request, address, data_len, data,
+    if (ControlTransfer(kRequestType, request, value, index, data_len, data,
                         err_msg)) {
       if (retry > 0) {
         std::cout << ".. vendor write successful after " << retry << " retries"
@@ -260,7 +348,7 @@ bool MinicamDevice::UploadImage(uint32_t data_len,
       chunk_size = (data_len - offset);
     }
 
-    ShowProgress(offset, chunk_size, data_len);
+    ShowProgress(offset, data_len);
     if (!Mv2WriteChunk(offset, chunk_size, data + offset, err_msg)) {
       // TODO(porce): How to recover in the middle?
       char msg[100];
@@ -273,13 +361,11 @@ bool MinicamDevice::UploadImage(uint32_t data_len,
     sum += chunk_size;
   }
 
-  std::cout << "[Done] wrote " << sum << " bytes" << std::endl;
+  ShowProgress(data_len, data_len);  // To show 100%
   return true;
 }
 
-void MinicamDevice::ShowProgress(uint32_t offset,
-                                 uint32_t chunk_size,
-                                 uint32_t data_len) const {
+void MinicamDevice::ShowProgress(uint32_t offset, uint32_t data_len) const {
   // Humble version of showing ShowProgress.
   // Show percentage progress only upon a change in 10% unit.
   // TODO(porce): Beautify this.
@@ -292,21 +378,11 @@ void MinicamDevice::ShowProgress(uint32_t offset,
     std::cout << percent << "%..";
     percent_prev = percent;
   }
-}
 
-std::string MinicamDevice::QueryFirmwareVersion() const {
-  const int kVersionBytes = 3;
-  uint8_t data[kVersionBytes];
-  std::string err_msg;
-
-  if (!VendorRead(VendorRequest::VERSION, kVersionBytes, data, &err_msg)) {
-    std::cout << ".. failed in vendor reading: " << err_msg << std::endl;
-    return "unknown";  //
+  if (percent_prev == 100) {
+    percent_prev = 0;  // reset for next
+    std::cout << std::endl;
   }
-
-  char buffer[kVersionBytes * 2 + 1];
-  snprintf(buffer, sizeof(buffer), "%02x%02x%02x", data[0], data[1], data[2]);
-  return buffer;
 }
 
 // Mv2Commit(): Call flow in this function is in question.
@@ -353,14 +429,14 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
         break;
       case 'E':
         // TODO(porce): ShowProgress.
-        std::cout << "Erase done" << std::endl;
+        std::cout << "[E]" << std::endl;
         break;
       case 'w':
         // TODO(porce): ShowProgress.
         std::cout << "[w]";
         break;
       case 'W':
-        std::cout << ".. Write done" << std::endl;
+        std::cout << "[W]" << std::endl;
         return true;
         break;
       case 'f':
@@ -379,7 +455,7 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
         *err_msg += msg;
         return false;
     }
-    SleepMilliSec(200);  // 0.2 sec
+    SleepMilliSec(1000);  // A way to suppress. The status is not queued.
   }
   *err_msg += ".. failed to commit. timed out: ";
   *err_msg += std::to_string(kTimeout / 1000) + " sec";

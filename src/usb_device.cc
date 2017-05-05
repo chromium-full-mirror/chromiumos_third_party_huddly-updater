@@ -166,26 +166,21 @@ bool UsbDevice::Teardown(std::string* err_msg) {
 
 bool UsbDevice::ControlTransfer(uint8_t request_type,
                                 uint8_t request,
-                                uint32_t address,
+                                uint16_t value,
+                                uint16_t index,
                                 uint32_t data_len,
                                 uint8_t* data,
                                 std::string* err_msg) const {
-  uint8_t libusb_request_type = static_cast<uint8_t>(request_type);
-  uint8_t libusb_request = request & 0xff;
-  uint16_t libusb_value = address & 0xffff;
-  uint16_t libusb_index = (address >> 16) & 0xffff;
-
   const int kUsbReadWriteTimeOut = 1000;  // msec
 
-#ifdef DEV_DEBUG
+#ifdef DEV_DEBUG_USBMON
   {
     // USB Mon Debug.
     printf(
         "[DBG] LIBUSB MON: "
         "reqtype:req:val:idx:dlen :: data :: "
         "%02x %02x %04x %04x %04x :: ",
-        libusb_request_type, libusb_request, libusb_value, libusb_index,
-        data_len);
+        request_type, request, value, index, data_len);
     const uint32_t kBytesToPrint = 4;
     uint32_t trunc_len = std::min(data_len, kBytesToPrint);
 
@@ -194,11 +189,11 @@ bool UsbDevice::ControlTransfer(uint8_t request_type,
     }
     printf(" :: devhandle %p\n", dev_handle_);
   }
-#endif  // DEV_DEBUG
+#endif  // DEV_DEBUG_USBMON
 
-  int ret = libusb_control_transfer(dev_handle_, libusb_request_type,
-                                    libusb_request, libusb_value, libusb_index,
-                                    data, data_len, kUsbReadWriteTimeOut);
+  int ret =
+      libusb_control_transfer(dev_handle_, request_type, request, value, index,
+                              data, data_len, kUsbReadWriteTimeOut);
 
   if (ret == static_cast<int>(data_len)) {
     return true;
@@ -214,8 +209,7 @@ bool UsbDevice::ControlTransfer(uint8_t request_type,
       err_msg_buf, sizeof(err_msg_buf),
       ".. failed to read fully from USB. Want %d bytes. Got %d bytes: request "
       "type %x request %x value %x index %x",
-      data_len, ret, libusb_request_type, libusb_request, libusb_value,
-      libusb_index);
+      data_len, ret, request_type, request, value, index);
   *err_msg += err_msg_buf;
   return false;
 }
