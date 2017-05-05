@@ -21,7 +21,14 @@ bool RunCommand(const std::string& cmd, std::string* output) {
   char buff[kShellCmdOutBufSize];
   std::string result;
 
-  std::cout << "[CMD] " << cmd << std::endl;
+  // TODO(crbug.com/719567): Use DLOG(INFO) instead of "if (verbose) std::out".
+  bool verbose = false;
+#ifdef DEV_DEBUG
+  verbose = true;
+#endif  // DEV_DEBUG
+
+  if (verbose)
+    std::cout << "[CMD] " << cmd << std::endl;
   std::FILE* pipe(popen(cmd.c_str(), "r"));
   if (!pipe) {
     *output = "failed to open pipe";
@@ -31,7 +38,8 @@ bool RunCommand(const std::string& cmd, std::string* output) {
   while (fgets(buff, sizeof(buff), pipe) != nullptr) {
     result += buff;
   }
-  std::cout << "[OUT] " << std::endl << result << std::endl;
+  if (verbose)
+    std::cout << "[OUT] " << std::endl << result << std::endl;
   pclose(pipe);
   *output = result;
   return true;
