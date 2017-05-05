@@ -15,43 +15,63 @@
 
 namespace huddly {
 
-// TODO(porce): Use minijail, change the path.
-const char kWorkDir[] = "/tmp/huddly/";
-const char kFirmwareAppPath[] = "/tmp/huddly/bin/huddly.bin";
-const char kFirmwareBootloaderPath[] = "/tmp/huddly/bin/huddly_boot.bin";
+namespace {
+// Huddly firmware package file and its uncompressed files.
+// These are relative path to the directory specified by the
+// command line argument. Default: kDefaultPkgDir
+const char kFirmwareApp[] = "bin/huddly.bin";
+const char kFirmwareBootloader[] = "bin/huddly_boot.bin";
+const char kFirmwareManifest[] = "manifest.txt";
+const char kFirmwarePkg[] = "huddly.pkg";
 
-// Test code. TODO(porce): Delete this line
-const char kHuddlyPkgPath[] = "/tmp/huddly.pkg";
-// const char kHuddlyPkgPath[] = "/lib/firmware/huddly.pkg";
-
-std::string Firmware::GetFirmwarePath() const {
-  // TODO(porce): Replace with gflags.
-  return kHuddlyPkgPath;
+bool ParseManifestLine(const std::string& line,
+                       std::string* key,
+                       std::string* value) {
+  const char* kDelimiter = ":";
+  // TODO(crbug.com/719567): Use libchrome for string splitting.
+  size_t pos = line.find(kDelimiter);
+  if (pos == std::string::npos || pos == 0) {
+    return false;
+  }
+  *key = line.substr(0, pos);
+  *value = line.substr(pos + 1);
+  return true;
 }
 
-Firmware::Firmware()
-    : app_path_(kFirmwareAppPath), bootloader_version_(""), app_version_("") {
-  firmware_path_ = GetFirmwarePath();
-  // TODO(porce): Replace std::out with logging, with policy.
-  std::cout << ".. using firmware package: " << firmware_path_ << std::endl;
+}  // namespace
+
+Firmware::Firmware(const std::string& pkg_dir) : pkg_dir_(pkg_dir) {
+  if (!pkg_dir_.empty() && pkg_dir_.back() != '/') {
+    pkg_dir_ += "/";
+  }
+
+  pkg_path_ = pkg_dir_ + kFirmwarePkg;
+  app_path_ = pkg_dir_ + kFirmwareApp;
+  bootloader_path_ = pkg_dir_ + kFirmwareBootloader;
+  manifest_path_ = pkg_dir_ + kFirmwareManifest;
 }
+
 Firmware::~Firmware() {}
 
 bool Firmware::IsReady(std::string* err_msg) const {
-  if (!HasFile(kHuddlyPkgPath)) {
-    *err_msg = "firmware pkg not ready: " + std::string(kHuddlyPkgPath);
+  if (!HasFile(pkg_path_)) {
+    *err_msg = "firmware pkg not ready: " + std::string(pkg_path_);
     return false;
   }
-  if (!Uncompress(firmware_path_, err_msg)) {
+  if (!Uncompress(pkg_path_, err_msg)) {
     return false;
   }
-  if (!HasFile(kFirmwareAppPath)) {
-    *err_msg = "firmware app not ready: " + std::string(kFirmwareAppPath);
+  if (!HasFile(app_path_)) {
+    *err_msg = "firmware app not ready: " + std::string(app_path_);
     return false;
   }
-  if (!HasFile(kFirmwareBootloaderPath)) {
-    *err_msg = "firmware bootloader not ready: " +
-               std::string(kFirmwareBootloaderPath);
+  if (!HasFile(bootloader_path_)) {
+    *err_msg =
+        "firmware bootloader not ready: " + std::string(bootloader_path_);
+    return false;
+  }
+  if (!HasFile(manifest_path_)) {
+    *err_msg = "firmware manifest not ready: " + std::string(manifest_path_);
     return false;
   }
 
@@ -67,17 +87,13 @@ bool Firmware::HasFile(const std::string& file_path) const {
 
 bool Firmware::Uncompress(const std::string& file_path,
                           std::string* err_msg) const {
-  std::cout << ".. Uncompressing " << file_path << " on " << kWorkDir
+  std::cout << ".. Uncompressing " << file_path << " on " << pkg_dir_
             << std::endl;
-  // TODO(porce): Make this line configurable. Make it softer.
   // TODO(porce): Consider using standard library.
-  std::string command = "mkdir -p " + std::string(kWorkDir) + " && cd " +
-                        std::string(kWorkDir) + " && unzip -o " +
-                        std::string(kHuddlyPkgPath);
-  if (!RunCommand(command, err_msg)) {
-    return false;
-  }
-  return true;
+  std::string command = "mkdir -p " + pkg_dir_ + " && cd " + pkg_dir_ +
+                        " && unzip -o " + pkg_path_;
+
+  return RunCommand(command, err_msg);
 }
 
 std::string Firmware::QueryAppVersion() {
@@ -94,6 +110,53 @@ std::string Firmware::QueryBootloaderVersion() {
   const std::string kDefaultBootloaderVersion = "0.0.8";
   bootloader_version_ = kDefaultBootloaderVersion;
   return kDefaultBootloaderVersion;
+}
+
+bool Firmware::ParseManifest(std::string* app_ver,
+                             std::string* bootloader_ver,
+                             std::string* hw_rev) const {
+  const char* kKeyAppVer = "mv2_app.version";
+  const char* kKeyBootloaderVer = "mv2_bootloader.version";
+  const char* kKeyHwRev = "hw_rev";
+
+  *app_ver = "";
+  *bootloader_ver = "";
+  *hw_rev = "";
+
+  std::ifstream file(manifest_path_.c_str());
+
+  while (file.good()) {
+    std::string line;
+    getline(file, line);
+
+    std::string key, value;
+    if (!ParseManifestLine(line, &key, &value)) {
+      continue;
+    }
+
+    if (key == kKeyAppVer) {
+      *app_ver = value;
+    } else if (key == kKeyBootloaderVer) {
+      *bootloader_ver = value;
+    } else if (key == kKeyHwRev) {
+      *hw_rev = value;
+    }
+  }
+
+  // Integrity test
+  return (*app_ver != "" && *bootloader_ver != "" && *hw_rev == "");
+}
+
+void Firmware::ShowInfo() const {
+  std::string app_ver, bootloader_ver, hw_rev;
+  ParseManifest(&app_ver, &bootloader_ver, &hw_rev);
+
+  std::cout << std::endl
+            << "Firmware package:" << std::endl
+            << "  dir:           " << pkg_dir_ << std::endl
+            << "  bootloader:    " << bootloader_ver << std::endl
+            << "  app:           " << app_ver << std::endl
+            << "  hw_rev:        " << hw_rev << std::endl;
 }
 
 }  // namespace huddly

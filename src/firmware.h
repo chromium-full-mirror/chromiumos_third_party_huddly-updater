@@ -11,7 +11,7 @@ namespace huddly {
 
 class Firmware {
  public:
-  Firmware();
+  Firmware(const std::string& pkg_dir);
   ~Firmware();
 
   bool IsReady(std::string* err_msg) const;
@@ -21,18 +21,32 @@ class Firmware {
   bool HasFile(const std::string& file_path) const;
 
   std::string app_path() const { return app_path_; }
+  std::string bootloader_path() const { return bootloader_path_; }
   std::string app_version() const { return app_version_; }
   std::string bootloader_version() const { return bootloader_version_; }
 
   std::string QueryAppVersion();
   std::string QueryBootloaderVersion();
 
+  // TODO(porce): Specify the path for an example manifest.txt
+  bool ParseManifest(std::string* app_ver,
+                     std::string* bootloader_ver,
+                     std::string* hw_rev) const;
+
+  // Show firmware versions and the supported hardware revisions
+  // of firmware package file.
+  void ShowInfo() const;
+
  private:
   Firmware(const Firmware&) = delete;
   Firmware& operator=(const Firmware&) = delete;
 
-  std::string firmware_path_;
+  // TODO(crbug.com/719567): Use base::FilePath.
+  std::string pkg_dir_;   // eg. /lib/firmware/huddly/
+  std::string pkg_path_;  // eg. /lib/firmware/huddly/huddly.pkg
   std::string app_path_;
+  std::string bootloader_path_;
+  std::string manifest_path_;
   std::string bootloader_version_;
   std::string app_version_;
 };
