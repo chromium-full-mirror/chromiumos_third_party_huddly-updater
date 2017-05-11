@@ -116,7 +116,7 @@ bool Firmware::ParseManifest(std::string* app_ver,
                              std::string* bootloader_ver,
                              std::string* hw_rev) const {
   const char* kKeyAppVer = "mv2_app.version";
-  const char* kKeyBootloaderVer = "mv2_bootloader.version";
+  const char* kKeyBootloaderVer = "mv2_boot.version";
   const char* kKeyHwRev = "hw_rev";
 
   *app_ver = "";
