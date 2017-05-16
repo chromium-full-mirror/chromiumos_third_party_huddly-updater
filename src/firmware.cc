@@ -16,13 +16,15 @@
 namespace huddly {
 
 namespace {
-// Huddly firmware package file and its uncompressed files.
-// These are relative path to the directory specified by the
-// command line argument. Default: kDefaultPkgDir
+// Base directory to fetch binary and manifest files.
+// kDefaultPkgDir from auto upgrade in ChromeOS, kManualPkgDir for manual
+// upgrade.
+const char kDefaultPkgDir[] = "/lib/firmware/huddly/";
+const char kManualPkgDir[] = "/tmp/huddly/";
+// Huddly firmware binary and manifest files, relative to the base directory.
 const char kFirmwareApp[] = "bin/huddly.bin";
 const char kFirmwareBootloader[] = "bin/huddly_boot.bin";
 const char kFirmwareManifest[] = "manifest.txt";
-const char kFirmwarePkg[] = "huddly.pkg";
 
 bool ParseManifestLine(const std::string& line,
                        std::string* key,
@@ -40,12 +42,19 @@ bool ParseManifestLine(const std::string& line,
 
 }  // namespace
 
-Firmware::Firmware(const std::string& pkg_dir) : pkg_dir_(pkg_dir) {
+Firmware::Firmware(const std::string& pkg_path) : pkg_path_(pkg_path) {
+  if (!IsManualUpgrade()) {
+    // ChromeOS auto upgrade workflow.
+    pkg_dir_ = kDefaultPkgDir;
+  } else {
+    // Manual upgrade workflow.
+    pkg_dir_ = kManualPkgDir;
+  }
+
   if (!pkg_dir_.empty() && pkg_dir_.back() != '/') {
     pkg_dir_ += "/";
   }
 
-  pkg_path_ = pkg_dir_ + kFirmwarePkg;
   app_path_ = pkg_dir_ + kFirmwareApp;
   bootloader_path_ = pkg_dir_ + kFirmwareBootloader;
   manifest_path_ = pkg_dir_ + kFirmwareManifest;
@@ -54,13 +63,19 @@ Firmware::Firmware(const std::string& pkg_dir) : pkg_dir_(pkg_dir) {
 Firmware::~Firmware() {}
 
 bool Firmware::IsReady(std::string* err_msg) const {
-  if (!HasFile(pkg_path_)) {
-    *err_msg = "firmware pkg not ready: " + std::string(pkg_path_);
-    return false;
+  if (IsManualUpgrade()) {
+    // Package file is given directly. Need to uncompress before proceeding.
+    if (!HasFile(pkg_path_)) {
+      *err_msg = ".. firmware package file does not exist: ";
+      *err_msg += pkg_path_;
+      return false;
+    }
+
+    if (!Uncompress(pkg_path_, err_msg)) {
+      return false;
+    }
   }
-  if (!Uncompress(pkg_path_, err_msg)) {
-    return false;
-  }
+
   if (!HasFile(app_path_)) {
     *err_msg = "firmware app not ready: " + std::string(app_path_);
     return false;
@@ -70,7 +85,8 @@ bool Firmware::IsReady(std::string* err_msg) const {
         "firmware bootloader not ready: " + std::string(bootloader_path_);
     return false;
   }
-  if (!HasFile(manifest_path_)) {
+  if (!IsManualUpgrade() && !HasFile(manifest_path_)) {
+    // Manual upgrade workflow does not require the manifest.txt.
     *err_msg = "firmware manifest not ready: " + std::string(manifest_path_);
     return false;
   }
@@ -115,13 +131,14 @@ std::string Firmware::QueryBootloaderVersion() {
 bool Firmware::ParseManifest(std::string* app_ver,
                              std::string* bootloader_ver,
                              std::string* hw_rev) const {
-  const char* kKeyAppVer = "mv2_app.version";
-  const char* kKeyBootloaderVer = "mv2_boot.version";
-  const char* kKeyHwRev = "hw_rev";
+  const char kKeyAppVer[] = "mv2_app.version";
+  const char kKeyBootloaderVer[] = "mv2_boot.version";
+  const char kKeyHwRev[] = "hw_rev";
+  const char kDefaultVerStr[] = "unknown. check manifest.txt";
 
-  *app_ver = "";
-  *bootloader_ver = "";
-  *hw_rev = "";
+  *app_ver = kDefaultVerStr;
+  *bootloader_ver = kDefaultVerStr;
+  *hw_rev = kDefaultVerStr;
 
   std::ifstream file(manifest_path_.c_str());
 

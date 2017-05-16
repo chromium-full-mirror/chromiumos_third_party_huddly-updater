@@ -17,7 +17,6 @@
 namespace {
 
 const int kWaitRebootingTimeoutSec = 10;
-const char kDefaultPkgDir[] = "/lib/firmware/huddly/";
 
 }  // namespace
 
@@ -25,7 +24,7 @@ struct CmdlineFlags {
   bool show_info;
   bool forceful_upgrade;
   bool dry_run;
-  std::string pkg_dir;
+  std::string pkg_path;  // Absolute path for huddly.pkg file.
 };
 
 // Switch booting modes and reboot.
@@ -70,7 +69,7 @@ int main(int argc, char* argv[]) {
 
   std::cout << ".. camera detected: " << minidev_app.GetId() << std::endl;
 
-  huddly::Firmware firmware(cmd_flags.pkg_dir);
+  huddly::Firmware firmware(cmd_flags.pkg_path);
   huddly::MinicamDevice minidev_boot(huddly::kVendorId,
                                      huddly::kProductIdBootloader);
 
@@ -171,7 +170,7 @@ void CheckAndRescue() {
 }
 
 void ShowInfo(const CmdlineFlags& cmd_flags) {
-  huddly::Firmware firmware(cmd_flags.pkg_dir);
+  huddly::Firmware firmware(cmd_flags.pkg_path);
   firmware.ShowInfo();
 
   huddly::MinicamDevice minidev(huddly::kVendorId, huddly::kProductIdApp);
@@ -192,8 +191,7 @@ void ShowUsage(const char* program_name) {
     "  --info:    Show firmware and peripheral information.\n"
     "  --force:   Force the upgrade ignoring the upgrade eligibility check.\n"
     "  --dryrun:  Dryrun. Do everything except for final committment.\n"
-    "  --path:    Specify the absolute directory of firmware package.\n"
-    "             Eg. /lib/firmware/huddly/\n"
+    "  --pkg:     Specify the absolute path for firmware package file.\n"
     "\n",
     program_name);
   /* clang-format on */
@@ -203,12 +201,12 @@ void ShowUsage(const char* program_name) {
 void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
   const char* kOptString = "h";
   const struct option long_options[] = {
-      {"help", no_argument, 0, 'h'},       {"info", no_argument, 0, 'i'},
-      {"force", no_argument, 0, 'f'},      {"dryrun", no_argument, 0, 'd'},
-      {"path", required_argument, 0, 'p'}, {0, 0, 0, 0},
+      {"help", no_argument, 0, 'h'},      {"info", no_argument, 0, 'i'},
+      {"force", no_argument, 0, 'f'},     {"dryrun", no_argument, 0, 'd'},
+      {"pkg", required_argument, 0, 'p'}, {0, 0, 0, 0},
   };
 
-  flags->pkg_dir = kDefaultPkgDir;
+  flags->pkg_path = "";
 
   int opt;
   int longoption_index = 0;
@@ -228,7 +226,7 @@ void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
         flags->dry_run = true;
         break;
       case 'p':
-        flags->pkg_dir = std::string(optarg);
+        flags->pkg_path = std::string(optarg);
         break;
       default:
         ShowUsage(argv[0]);

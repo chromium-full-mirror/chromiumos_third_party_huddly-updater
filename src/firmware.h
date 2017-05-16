@@ -11,7 +11,7 @@ namespace huddly {
 
 class Firmware {
  public:
-  Firmware(const std::string& pkg_dir);
+  Firmware(const std::string& pkg_path = "");
   ~Firmware();
 
   bool IsReady(std::string* err_msg) const;
@@ -37,13 +37,23 @@ class Firmware {
   // of firmware package file.
   void ShowInfo() const;
 
+  // Check if manual upgrade work flow in action or not.
+  bool IsManualUpgrade() const { return !pkg_path_.empty(); }
+
  private:
   Firmware(const Firmware&) = delete;
   Firmware& operator=(const Firmware&) = delete;
 
   // TODO(crbug.com/719567): Use base::FilePath.
-  std::string pkg_dir_;   // eg. /lib/firmware/huddly/
-  std::string pkg_path_;  // eg. /lib/firmware/huddly/huddly.pkg
+  std::string pkg_path_;  // Absolute path to file "huddly.pkg".
+                          // eg. /lib/firmware/huddly/huddly.pkg
+
+  std::string pkg_dir_;  // Directory is required to have following files:
+                         // bin/huddly.bin
+                         // bin/huddly_boot.bin
+                         // manifest.json
+                         // manifest.txt
+
   std::string app_path_;
   std::string bootloader_path_;
   std::string manifest_path_;
