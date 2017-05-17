@@ -1,10 +1,22 @@
 # Huddly USB rules
-SUBSYSTEM=="usb", ENV{ID_VENDOR_ID}=="2bd9", ENV{ID_MODEL_ID}=="0011", GOTO="huddly_action"
+# Bootloader mode (PID:0010) occurs as part of firmware upgrade process.
+# In normal case, huddly-updater is already in action when the device
+# enters this mode. Set proper permission, then no more action is needed.
+SUBSYSTEM=="usb", ENV{ID_VENDOR_ID}=="2bd9", ENV{ID_MODEL_ID}=="0010", \
+  MODE="0664", OWNER="cfm-firmware-updaters", GROUP="cfm-firmware-updaters", \
+  GOTO="huddly_end"
+# APP mode (PID:0011) occurs in normal operation.
+# Whenever this mode is detected, run huddly-updater which will perform
+# upgrade eligibility check by querying the firmware versions. If matched,
+# huddly-updater will simply bail out with no-op.
+SUBSYSTEM=="usb", ENV{ID_VENDOR_ID}=="2bd9", ENV{ID_MODEL_ID}=="0011", \
+  MODE="0664", OWNER="cfm-firmware-updaters", GROUP="cfm-firmware-updaters", \
+  GOTO="huddly_action"
 
 GOTO="huddly_end"
 
 LABEL="huddly_action"
 
-ACTION=="add", RUN+="/sbin/minijail0 -u cfm-firmware-updaters -g cfm-firmware-updaters -eINpvrni -- /usr/sbin/huddly-update"
+ACTION=="add", RUN+="/sbin/minijail0 -u cfm-firmware-updaters -g cfm-firmware-updaters -e -i -l -N -v -r -n -- /usr/sbin/huddly-updater"
 
 LABEL="huddly_end"
