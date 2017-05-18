@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -13,14 +14,21 @@
 
 namespace huddly {
 
-Flasher::Flasher(const Firmware& firmware,
-                 MinicamDevice* minidev,
-                 bool forceful_upgrade,
-                 bool dry_run)
+namespace {
+
+std::string BoolToYesNo(bool test) {
+  return test ? "Y" : "N";
+}
+
+}  // namespace
+
+Flasher::Flasher(const Firmware& firmware, bool forceful_upgrade, bool dry_run)
     : firmware_(firmware),
-      minidev_(minidev),
+      minidev_(new MinicamDevice(kVendorId, kProductIdBootloader)),
       forceful_upgrade_(forceful_upgrade),
-      dry_run_(dry_run) {}
+      dry_run_(dry_run),
+      is_eligible_to_upgrade_app_(false),
+      is_eligible_to_upgrade_boot_(false) {}
 
 Flasher::~Flasher() {
   std::string err_msg;
@@ -30,23 +38,60 @@ Flasher::~Flasher() {
   }
 }
 
+bool Flasher::Init(std::string* err_msg) {
+  // Prepare the firmware package/images.
+  if (!firmware_.IsReady(err_msg)) {
+    *err_msg += ".. Firmware is not ready";
+    return false;
+  }
+
+  // Object of huddly camera in App mode.
+  MinicamDevice minidev_app(kVendorId, kProductIdApp);
+  if (!minidev_app.CheckIfExists()) {
+    *err_msg += ".. camera not detected: ";
+    return false;
+  }
+
+  std::cout << ".. camera detected: " << minidev_app.GetId() << std::endl;
+
+  StorePeripheralInfo();  // Invoke while in App mode.
+  StoreFirmwareInfo();
+
+  // TODO(porce): When fw_hw_rev is a set, See if pl_hw_rev is a member of
+  // fw_hw_rev.
+  if (fw_hw_rev_ != pl_hw_rev_) {
+    // Hardware revision mismatch. Do not upgrade.
+    is_eligible_to_upgrade_app_ = false;
+    is_eligible_to_upgrade_boot_ = false;
+  } else if (forceful_upgrade_) {
+    is_eligible_to_upgrade_app_ = true;
+    is_eligible_to_upgrade_boot_ = true;
+  } else {
+    is_eligible_to_upgrade_app_ = (fw_app_ver_ != pl_app_ver_);
+    is_eligible_to_upgrade_boot_ = (fw_bootloader_ver_ != pl_bootloader_ver_);
+  }
+
+  ShowUpgradeEligibility();
+  return true;
+}
+
+void Flasher::ShowUpgradeEligibility() const {
+  std::cout << "Upgrade plan: " << BoolToYesNo(IsEligibleForUpgrade()) << "\n"
+            << "  [" << BoolToYesNo(is_eligible_to_upgrade_boot_)
+            << "] Bootloader " << std::setw(5) << pl_bootloader_ver_ << " -> "
+            << std::setw(5) << fw_bootloader_ver_ << "\n"
+            << "  [" << BoolToYesNo(is_eligible_to_upgrade_app_)
+            << "] App        " << std::setw(5) << pl_app_ver_ << " -> "
+            << std::setw(5) << fw_app_ver_ << "\n";
+}
+
 bool Flasher::FlashAll(std::string* err_msg) const {
   if (!minidev_->Setup(err_msg)) {
     *err_msg += ".. failed to flash app in minidev setting up";
     return false;
   }
 
-  bool to_upgrade_app;
-  bool to_upgrade_bootloader;
-  GetEligibility(&to_upgrade_app, &to_upgrade_bootloader);
-
-  printf(
-      "Upgrade plan:\n"
-      "  [%s] Bootloader\n"
-      "  [%s] App\n",
-      to_upgrade_bootloader ? "Y" : "N", to_upgrade_app ? "Y" : "N");
-
-  if (to_upgrade_bootloader) {
+  if (is_eligible_to_upgrade_boot_) {
     std::cout << "Upgrading Bootloader: " << pl_bootloader_ver_ << " -> "
               << fw_bootloader_ver_ << std::endl;
     if (!FlashWithFile(firmware_.bootloader_path(), err_msg)) {
@@ -54,7 +99,7 @@ bool Flasher::FlashAll(std::string* err_msg) const {
     }
   }
 
-  if (to_upgrade_app) {
+  if (is_eligible_to_upgrade_app_) {
     std::cout << "Upgrading App: " << pl_app_ver_ << " -> " << fw_app_ver_
               << std::endl;
     if (!FlashWithFile(firmware_.app_path(), err_msg)) {
@@ -103,36 +148,14 @@ bool Flasher::FlashWithFile(const std::string& file_path,
   return true;
 }
 
-void Flasher::GetEligibility(bool* to_upgrade_app,
-                             bool* to_upgrade_bootloader) const {
-  if (forceful_upgrade_) {
-    *to_upgrade_app = true;
-    *to_upgrade_bootloader = true;
-    return;
-  }
-
-  // TODO(porce): When fw_hw_rev is a set, See if pl_hw_rev is a member of
-  // fw_hw_rev.
-  if (fw_hw_rev_ != pl_hw_rev_) {
-    // Hardware revision mismatch. Do not upgrade.
-    *to_upgrade_app = false;
-    *to_upgrade_bootloader = false;
-  }
-
-  *to_upgrade_app = (fw_app_ver_ != pl_app_ver_);
-  *to_upgrade_bootloader = (fw_bootloader_ver_ != pl_bootloader_ver_);
-}
-
 void Flasher::StoreFirmwareInfo() {
-  std::string fw_app_ver, fw_bootloader_ver, fw_hw_rev;
-  std::string err_msg;
   firmware_.ParseManifest(&fw_app_ver_, &fw_bootloader_ver_, &fw_hw_rev_);
 }
 
 void Flasher::StorePeripheralInfo() {
   // This special routine is a workaround:
   // The App version can be queries only in the App mode.
-  MinicamDevice minidev_app(huddly::kVendorId, huddly::kProductIdApp);
+  MinicamDevice minidev_app(kVendorId, kProductIdApp);
 
   std::string err_msg;
   minidev_app.Setup(&err_msg);

@@ -5,6 +5,7 @@
 #ifndef SRC_FLASHER_H_
 #define SRC_FLASHER_H_
 
+#include <memory>
 #include <string>
 
 #include "firmware.h"
@@ -18,26 +19,41 @@ namespace huddly {
 // completes it job.
 class Flasher {
  public:
-  Flasher(const Firmware& firmware,
-          MinicamDevice* minidev,
-          bool forceful_upgrade,
-          bool dry_run);
+  Flasher(const Firmware& firmware, bool forceful_upgrade, bool dry_run);
   ~Flasher();
+
+  // Returns true if firmware package is ready, and if it succeeds to query
+  // / store the firmware versions of firmware package and the peripheral, and
+  // to determine the upgrade eligibility. Returns false otherwise.
+  bool Init(std::string* err_msg);
+
+  bool IsEligibleForUpgrade() const {
+    return is_eligible_to_upgrade_app_ || is_eligible_to_upgrade_boot_;
+  }
+
+  // Prints if bootloader and app need upgrades, together with current versions
+  // and would-be versions. If any of them is eligible to upgrade, say the
+  // device is eligible to upgrade.
+  void ShowUpgradeEligibility() const;
+
   bool FlashAll(std::string* err_msg) const;
   bool FlashWithFile(const std::string& file_path, std::string* err_msg) const;
-  void StoreFirmwareInfo();
-  void StorePeripheralInfo();
 
  private:
   Flasher(const Flasher&) = delete;
   Flasher& operator=(const Flasher&) = delete;
 
-  // Test if the peripheral needs to be upgraded.
-  void GetEligibility(bool* to_upgrade_app, bool* to_upgrade_bootloader) const;
+  // Updates fw_app_ver_, fw_bootloader_ver_, fw_hw_rev_ with information
+  // from file manifest.txt.
+  void StoreFirmwareInfo();
+
+  // Updates pl_app_ver_, pl_bootloader_ver_, pl_hw_rev_ with information
+  // from the attached Huddly camera device.
+  void StorePeripheralInfo();
 
   // TODO(porce): make pointers / references protected during active flash op.
   const Firmware& firmware_;
-  MinicamDevice* minidev_;
+  std::unique_ptr<MinicamDevice> minidev_;
 
   // When true, skip eligibility check. Flash firmware always.
   bool forceful_upgrade_;
@@ -51,6 +67,10 @@ class Flasher {
   std::string pl_app_ver_;
   std::string pl_bootloader_ver_;
   std::string pl_hw_rev_;
+
+  // Set by Init(), consumed by IsEligibleForUpgrade().
+  bool is_eligible_to_upgrade_app_;
+  bool is_eligible_to_upgrade_boot_;
 };
 
 }  // namespace huddly

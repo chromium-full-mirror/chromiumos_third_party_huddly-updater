@@ -46,7 +46,7 @@ void ShowUsage(const char* program_name);
 void ParseArgs(int argc, char* argv[], CmdlineFlags* flags);
 
 int main(int argc, char* argv[]) {
-  // If the camera is in abnormal state, attep to rescue it first.
+  // If the camera is in abnormal state, attempt to rescue it first.
   CheckAndRescue();
 
   // Hanlde command line options.
@@ -58,36 +58,24 @@ int main(int argc, char* argv[]) {
   }
 
   std::cout << "Starting Huddly Package Updater .." << std::endl;
-  // Object of huddly camera in App mode.
-  huddly::MinicamDevice minidev_app(huddly::kVendorId, huddly::kProductIdApp);
-  std::string err_msg;
-  if (!minidev_app.CheckIfExists()) {
-    err_msg += ".. camera not detected";
-    std::cout << err_msg << std::endl;
-    return EXIT_FAILURE;
-  }
-
-  std::cout << ".. camera detected: " << minidev_app.GetId() << std::endl;
 
   huddly::Firmware firmware(cmd_flags.pkg_path);
-  huddly::MinicamDevice minidev_boot(huddly::kVendorId,
-                                     huddly::kProductIdBootloader);
-
-  huddly::Flasher flasher(firmware, &minidev_boot, cmd_flags.forceful_upgrade,
+  huddly::Flasher flasher(firmware, cmd_flags.forceful_upgrade,
                           cmd_flags.dry_run);
-  flasher.StorePeripheralInfo();  // Invoke while in App mode.
-  flasher.StoreFirmwareInfo();
+
+  std::string err_msg;
+  if (!flasher.Init(&err_msg)) {
+    std::cout << err_msg << std::endl;
+  }
+  if (!flasher.IsEligibleForUpgrade()) {
+    // Not necessarily an error, but propagates useful info.
+    std::cout << ".. is not eligible for firmware upgrade" << std::endl;
+    return EXIT_SUCCESS;
+  }
 
   if (!SwitchMode(huddly::BootMode::APP, huddly::BootMode::BOOTLOADER,
                   &err_msg)) {
     err_msg += ".. failed to initialize the mode";
-    std::cout << err_msg << std::endl;
-    return EXIT_FAILURE;
-  }
-
-  // Prepare the firmware package/images.
-  if (!firmware.IsReady(&err_msg)) {
-    err_msg += ".. Firmware is not ready";
     std::cout << err_msg << std::endl;
     return EXIT_FAILURE;
   }
