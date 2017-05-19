@@ -46,6 +46,12 @@ bool Flasher::Init(std::string* err_msg) {
     return false;
   }
 
+  if (forceful_upgrade_) {
+    is_eligible_to_upgrade_app_ = true;
+    is_eligible_to_upgrade_boot_ = true;
+    return true;
+  }
+
   // Object of huddly camera in App mode.
   MinicamDevice minidev_app(kVendorId, kProductIdApp);
   if (!minidev_app.CheckIfExists()) {
@@ -64,15 +70,11 @@ bool Flasher::Init(std::string* err_msg) {
     // Hardware revision mismatch. Do not upgrade.
     is_eligible_to_upgrade_app_ = false;
     is_eligible_to_upgrade_boot_ = false;
-  } else if (forceful_upgrade_) {
-    is_eligible_to_upgrade_app_ = true;
-    is_eligible_to_upgrade_boot_ = true;
   } else {
     is_eligible_to_upgrade_app_ = (fw_app_ver_ != pl_app_ver_);
     is_eligible_to_upgrade_boot_ = (fw_bootloader_ver_ != pl_bootloader_ver_);
   }
 
-  ShowUpgradeEligibility();
   return true;
 }
 

@@ -29,6 +29,10 @@ struct CmdlineFlags {
   bool dry_run;
   std::string pkg_path;  // Absolute path for huddly.pkg file.
   std::string log_to;    // Path of log file destination. stdout is legal.
+  bool prep_only;
+  bool burn_only;
+  bool switch_to_app_mode;
+  bool switch_to_boot_mode;
 };
 
 // Switch booting modes and reboot.
@@ -39,9 +43,6 @@ bool SwitchMode(huddly::BootMode from,
 // Show firmware versions and hardware revisions of firmware package and
 // the Huddly peripheral in use.
 void ShowInfo(const CmdlineFlags& cmd_flags);
-
-// Recover from, if any, the Bootloader mode to App mode.
-void CheckAndRescue();
 
 // Show command line argument options.
 void ShowUsage(const char* program_name);
@@ -54,6 +55,18 @@ int main(int argc, char* argv[]) {
   CmdlineFlags cmd_flags = {};
   ParseArgs(argc, argv, &cmd_flags);
 
+  // In the simplified workflow, do both do_prep and do_burn steps.
+  // In CFM workflow, two steps are separated by two different udev rules
+  // to accommodate the minijail restrictions.
+  // TODO(porce): Check the exclusiveness of |burn_only| and |prep_only| and
+  // warn.
+  bool do_prep = !cmd_flags.burn_only;
+  bool do_burn = !cmd_flags.prep_only;
+
+  if (cmd_flags.burn_only) {
+    cmd_flags.forceful_upgrade = true;  // Override
+  }
+
   if (cmd_flags.log_to != "stdout") {
     logging::LoggingSettings logging_settings;
     logging_settings.logging_dest = logging::LOG_TO_FILE;
@@ -64,12 +77,35 @@ int main(int argc, char* argv[]) {
 
   LOG(INFO) << "Starting Huddly Package Updater ..";
 
-  // If the camera is in abnormal state, attempt to rescue it first.
-  CheckAndRescue();
-
   if (cmd_flags.show_info) {
     LOG(INFO) << "Show info..";
     ShowInfo(cmd_flags);
+    return EXIT_SUCCESS;
+  }
+
+  std::string err_msg;
+  // TODO(porce): Check the exclusiveness of |switch_to_app_mode| and
+  // |switch_to_boot_mode| and warn.
+
+  // TODO(porce): Factor out into helper functions for return cases below.
+  if (cmd_flags.switch_to_app_mode) {
+    if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
+                    &err_msg)) {
+      err_msg += ".. failed to initialize the mode";
+      LOG(INFO) << err_msg;
+      return EXIT_FAILURE;
+    }
+    LOG(INFO) << ".. succeeded in switching mode to app";
+    return EXIT_SUCCESS;
+  }
+  if (cmd_flags.switch_to_boot_mode) {
+    if (!SwitchMode(huddly::BootMode::APP, huddly::BootMode::BOOTLOADER,
+                    &err_msg)) {
+      err_msg += ".. failed to initialize the mode";
+      LOG(INFO) << err_msg;
+      return EXIT_FAILURE;
+    }
+    LOG(INFO) << ".. succeeded in switching mode to boot";
     return EXIT_SUCCESS;
   }
 
@@ -77,40 +113,45 @@ int main(int argc, char* argv[]) {
   huddly::Flasher flasher(firmware, cmd_flags.forceful_upgrade,
                           cmd_flags.dry_run);
 
-  std::string err_msg;
   if (!flasher.Init(&err_msg)) {
     LOG(ERROR) << err_msg;
   }
-  if (!flasher.IsEligibleForUpgrade()) {
-    // Not necessarily an error, but propagates useful info.
-    LOG(INFO) << ".. is not eligible for firmware upgrade";
-    return EXIT_SUCCESS;
+
+  if (do_prep) {
+    if (!flasher.IsEligibleForUpgrade()) {
+      // Not necessarily an error, but propagates useful info.
+      LOG(INFO) << ".. is not eligible for firmware upgrade";
+      return EXIT_SUCCESS;
+    }
+
+    flasher.ShowUpgradeEligibility();
+
+    if (!SwitchMode(huddly::BootMode::APP, huddly::BootMode::BOOTLOADER,
+                    &err_msg)) {
+      err_msg += ".. failed to initialize the mode";
+      LOG(ERROR) << err_msg;
+      return EXIT_FAILURE;
+    }
   }
 
-  if (!SwitchMode(huddly::BootMode::APP, huddly::BootMode::BOOTLOADER,
-                  &err_msg)) {
-    err_msg += ".. failed to initialize the mode";
-    LOG(ERROR) << err_msg;
-    return EXIT_FAILURE;
+  if (do_burn) {
+    if (!flasher.FlashAll(&err_msg)) {
+      err_msg += ".. failed to flash";
+      LOG(ERROR) << err_msg;
+      return EXIT_FAILURE;
+    }
+
+    LOG(INFO) << ".. wrote firmware";
+
+    if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
+                    &err_msg)) {
+      err_msg += ".. failed to reboot back to APP mode";
+      LOG(ERROR) << err_msg;
+      return EXIT_FAILURE;
+    }
+
+    LOG(INFO) << ".. upgrade complete.";
   }
-
-  // Flash App.
-  if (!flasher.FlashAll(&err_msg)) {
-    err_msg += ".. failed to flash";
-    LOG(ERROR) << err_msg;
-    return EXIT_FAILURE;
-  }
-
-  LOG(INFO) << ".. wrote firmware";
-
-  if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
-                  &err_msg)) {
-    err_msg += ".. failed to reboot back to APP mode";
-    LOG(ERROR) << err_msg;
-    return EXIT_FAILURE;
-  }
-
-  LOG(INFO) << ".. upgrade complete.";
   return EXIT_SUCCESS;
 }
 
@@ -149,29 +190,6 @@ bool SwitchMode(huddly::BootMode from,
   return true;
 }
 
-void CheckAndRescue() {
-  // TODO(porce): Implement automated recovery. Consider not to bail out.
-
-  // Object of huddly camera in Bootloader mode.
-  huddly::MinicamDevice minidev_boot(huddly::kVendorId,
-                                     huddly::kProductIdBootloader);
-
-  std::string err_msg;
-  // This conditional is to support to recover from very unusual case.
-  if (!minidev_boot.CheckIfExists()) {
-    return;
-  }
-
-  LOG(INFO) << "Bootloader mode detected. Switching to App mode";
-  // Abnormal situation. Reboot in App mode and exit.
-  if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
-                  &err_msg)) {
-    err_msg += ".. failed to initialize the mode";
-    LOG(INFO) << err_msg;
-  }
-  std::exit(EXIT_FAILURE);
-}
-
 void ShowInfo(const CmdlineFlags& cmd_flags) {
   huddly::Firmware firmware(cmd_flags.pkg_path);
   firmware.ShowInfo();
@@ -197,6 +215,10 @@ void ShowUsage(const char* program_name) {
     "  --dryrun:  Dryrun. Do everything except for final committment.\n"
     "  --pkg:     Specify the absolute path for firmware package file.\n"
     "  --log_to:  Path to log file. stdout is legal. \n"
+    "  --prep:    Prep only, without entering the burning step.\n"
+    "  --burn:    Burn only, without prepping step.\n"
+    "  --app:     Switch to App mode and reboot.\n"
+    "  --boot:    Switch to Boot mode and reboot.\n"
     "\n",
     program_name);
   /* clang-format on */
@@ -212,11 +234,19 @@ void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
       {"dryrun", no_argument, 0, 'd'},
       {"pkg", required_argument, 0, 'p'},
       {"log_to", required_argument, 0, 'l'},
+      {"prep", no_argument, 0, 'r'},
+      {"burn", no_argument, 0, 'u'},
+      {"app", no_argument, 0, 'a'},
+      {"boot", no_argument, 0, 'b'},
       {0, 0, 0, 0},
   };
 
   flags->pkg_path = "";
   flags->log_to = kDefaultLogFile;
+  flags->prep_only = false;
+  flags->burn_only = false;
+  flags->switch_to_app_mode = false;
+  flags->switch_to_boot_mode = false;
 
   int opt;
   int longoption_index = 0;
@@ -240,6 +270,18 @@ void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
         break;
       case 'l':
         flags->log_to = std::string(optarg);
+        break;
+      case 'r':
+        flags->prep_only = true;
+        break;
+      case 'u':
+        flags->burn_only = true;
+        break;
+      case 'a':
+        flags->switch_to_app_mode = true;
+        break;
+      case 'b':
+        flags->switch_to_boot_mode = true;
         break;
       default:
         ShowUsage(argv[0]);
