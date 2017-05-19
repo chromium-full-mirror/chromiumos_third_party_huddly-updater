@@ -17,6 +17,7 @@ GOTO="huddly_end"
 
 LABEL="huddly_action"
 
-ACTION=="add", RUN+="/sbin/minijail0 -u cfm-firmware-updaters -g cfm-firmware-updaters -e -i -l -N -v -r -n -- /usr/sbin/huddly-updater"
+# TODO(crbug.com/724333): Reactivate udev-minijail-huddly-updater invocation.
+# ACTION=="add", RUN+="/sbin/minijail0 -u cfm-firmware-updaters -g cfm-firmware-updaters -e -i -l -N -v -r -n -- /usr/sbin/huddly-updater"
 
 LABEL="huddly_end"
