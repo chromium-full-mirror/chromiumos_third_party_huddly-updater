@@ -2,8 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <base/logging.h>
+
 #include <iomanip>
-#include <iostream>
 #include <memory>
 #include <string>
 
@@ -34,7 +35,7 @@ Flasher::~Flasher() {
   std::string err_msg;
   if (!minidev_->Teardown(&err_msg)) {
     err_msg += ".. failed to tear down the minidev Flasher used";
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
   }
 }
 
@@ -52,7 +53,7 @@ bool Flasher::Init(std::string* err_msg) {
     return false;
   }
 
-  std::cout << ".. camera detected: " << minidev_app.GetId() << std::endl;
+  LOG(INFO) << ".. camera detected: " << minidev_app.GetId();
 
   StorePeripheralInfo();  // Invoke while in App mode.
   StoreFirmwareInfo();
@@ -76,13 +77,14 @@ bool Flasher::Init(std::string* err_msg) {
 }
 
 void Flasher::ShowUpgradeEligibility() const {
-  std::cout << "Upgrade plan: " << BoolToYesNo(IsEligibleForUpgrade()) << "\n"
+  LOG(INFO) << "Upgrade plan: " << BoolToYesNo(IsEligibleForUpgrade())
+            << std::endl
             << "  [" << BoolToYesNo(is_eligible_to_upgrade_boot_)
             << "] Bootloader " << std::setw(5) << pl_bootloader_ver_ << " -> "
-            << std::setw(5) << fw_bootloader_ver_ << "\n"
+            << std::setw(5) << fw_bootloader_ver_ << std::endl
             << "  [" << BoolToYesNo(is_eligible_to_upgrade_app_)
             << "] App        " << std::setw(5) << pl_app_ver_ << " -> "
-            << std::setw(5) << fw_app_ver_ << "\n";
+            << std::setw(5) << fw_app_ver_;
 }
 
 bool Flasher::FlashAll(std::string* err_msg) const {
@@ -92,16 +94,15 @@ bool Flasher::FlashAll(std::string* err_msg) const {
   }
 
   if (is_eligible_to_upgrade_boot_) {
-    std::cout << "Upgrading Bootloader: " << pl_bootloader_ver_ << " -> "
-              << fw_bootloader_ver_ << std::endl;
+    LOG(INFO) << "Upgrading Bootloader: " << pl_bootloader_ver_ << " -> "
+              << fw_bootloader_ver_;
     if (!FlashWithFile(firmware_.bootloader_path(), err_msg)) {
       *err_msg += ".. failed to upgrade bootloader";
     }
   }
 
   if (is_eligible_to_upgrade_app_) {
-    std::cout << "Upgrading App: " << pl_app_ver_ << " -> " << fw_app_ver_
-              << std::endl;
+    LOG(INFO) << "Upgrading App: " << pl_app_ver_ << " -> " << fw_app_ver_;
     if (!FlashWithFile(firmware_.app_path(), err_msg)) {
       *err_msg += ".. failed to upgrade app";
     }

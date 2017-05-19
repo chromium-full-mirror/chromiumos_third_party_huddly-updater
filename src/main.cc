@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <base/logging.h>
 #include <getopt.h>
 
 #include <cstdlib>
-#include <iostream>
 #include <string>
 
 #include "firmware.h"
@@ -18,6 +18,9 @@ namespace {
 
 const int kWaitRebootingTimeoutSec = 10;
 
+// TODO(porce): Investigate the permission of /var/log/huddly.log
+const char kDefaultLogFile[] = "/tmp/huddly.log";
+
 }  // namespace
 
 struct CmdlineFlags {
@@ -25,6 +28,7 @@ struct CmdlineFlags {
   bool forceful_upgrade;
   bool dry_run;
   std::string pkg_path;  // Absolute path for huddly.pkg file.
+  std::string log_to;    // Path of log file destination. stdout is legal.
 };
 
 // Switch booting modes and reboot.
@@ -46,18 +50,28 @@ void ShowUsage(const char* program_name);
 void ParseArgs(int argc, char* argv[], CmdlineFlags* flags);
 
 int main(int argc, char* argv[]) {
-  // If the camera is in abnormal state, attempt to rescue it first.
-  CheckAndRescue();
-
   // Hanlde command line options.
   CmdlineFlags cmd_flags = {};
   ParseArgs(argc, argv, &cmd_flags);
+
+  if (cmd_flags.log_to != "stdout") {
+    logging::LoggingSettings logging_settings;
+    logging_settings.logging_dest = logging::LOG_TO_FILE;
+    logging_settings.log_file = cmd_flags.log_to.c_str();
+    logging_settings.lock_log = logging::DONT_LOCK_LOG_FILE;
+    logging::InitLogging(logging_settings);
+  }
+
+  LOG(INFO) << "Starting Huddly Package Updater ..";
+
+  // If the camera is in abnormal state, attempt to rescue it first.
+  CheckAndRescue();
+
   if (cmd_flags.show_info) {
+    LOG(INFO) << "Show info..";
     ShowInfo(cmd_flags);
     return EXIT_SUCCESS;
   }
-
-  std::cout << "Starting Huddly Package Updater .." << std::endl;
 
   huddly::Firmware firmware(cmd_flags.pkg_path);
   huddly::Flasher flasher(firmware, cmd_flags.forceful_upgrade,
@@ -65,38 +79,38 @@ int main(int argc, char* argv[]) {
 
   std::string err_msg;
   if (!flasher.Init(&err_msg)) {
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
   }
   if (!flasher.IsEligibleForUpgrade()) {
     // Not necessarily an error, but propagates useful info.
-    std::cout << ".. is not eligible for firmware upgrade" << std::endl;
+    LOG(INFO) << ".. is not eligible for firmware upgrade";
     return EXIT_SUCCESS;
   }
 
   if (!SwitchMode(huddly::BootMode::APP, huddly::BootMode::BOOTLOADER,
                   &err_msg)) {
     err_msg += ".. failed to initialize the mode";
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
     return EXIT_FAILURE;
   }
 
   // Flash App.
   if (!flasher.FlashAll(&err_msg)) {
     err_msg += ".. failed to flash";
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
     return EXIT_FAILURE;
   }
 
-  std::cout << ".. wrote firmware" << std::endl;
+  LOG(INFO) << ".. wrote firmware";
 
   if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
                   &err_msg)) {
     err_msg += ".. failed to reboot back to APP mode";
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
     return EXIT_FAILURE;
   }
 
-  std::cout << ".. upgrade complete." << std::endl;
+  LOG(INFO) << ".. upgrade complete.";
   return EXIT_SUCCESS;
 }
 
@@ -111,9 +125,9 @@ bool SwitchMode(huddly::BootMode from,
     return false;
   }
 
-  std::cout << ".. switching mode from " << BootModeStr(from) << " to "
+  LOG(INFO) << ".. switching mode from " << BootModeStr(from) << " to "
             << BootModeStr(to) << ".. rebooting (timeout "
-            << kWaitRebootingTimeoutSec << " sec)" << std::endl;
+            << kWaitRebootingTimeoutSec << " sec)";
 
   if (!minidev_from.RebootInMode(to, err_msg)) {
     *err_msg += ".. failed to reboot in mode: ";
@@ -121,7 +135,7 @@ bool SwitchMode(huddly::BootMode from,
     return false;
   }
 
-  std::cout << ".. waiting to come up" << std::endl;
+  LOG(INFO) << ".. waiting to come up";
 
   huddly::MinicamDevice minidev_to(huddly::kVendorId, BootModeToProductId(to));
   if (!minidev_to.WaitForOnline(kWaitRebootingTimeoutSec, err_msg)) {
@@ -130,8 +144,8 @@ bool SwitchMode(huddly::BootMode from,
     return false;
   }
 
-  std::cout << ".. entered " << BootModeStr(to)
-            << " mode. VID:PID=" << minidev_to.GetId() << std::endl;
+  LOG(INFO) << ".. entered " << BootModeStr(to)
+            << " mode. VID:PID=" << minidev_to.GetId();
   return true;
 }
 
@@ -148,11 +162,12 @@ void CheckAndRescue() {
     return;
   }
 
+  LOG(INFO) << "Bootloader mode detected. Switching to App mode";
   // Abnormal situation. Reboot in App mode and exit.
   if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
                   &err_msg)) {
     err_msg += ".. failed to initialize the mode";
-    std::cout << err_msg << std::endl;
+    LOG(INFO) << err_msg;
   }
   std::exit(EXIT_FAILURE);
 }
@@ -164,7 +179,7 @@ void ShowInfo(const CmdlineFlags& cmd_flags) {
   huddly::MinicamDevice minidev(huddly::kVendorId, huddly::kProductIdApp);
   std::string err_msg;
   if (!minidev.Setup(&err_msg)) {
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
     return;
   }
   minidev.ShowInfo();
@@ -172,6 +187,7 @@ void ShowInfo(const CmdlineFlags& cmd_flags) {
 
 void ShowUsage(const char* program_name) {
   // TODO(porce): Refactor using const string.
+  LOG(INFO) << "Show usage";
   /* clang-format off */
   printf("\n"
     "Usage: %s [--option(s)]\n"
@@ -180,6 +196,7 @@ void ShowUsage(const char* program_name) {
     "  --force:   Force the upgrade ignoring the upgrade eligibility check.\n"
     "  --dryrun:  Dryrun. Do everything except for final committment.\n"
     "  --pkg:     Specify the absolute path for firmware package file.\n"
+    "  --log_to:  Path to log file. stdout is legal. \n"
     "\n",
     program_name);
   /* clang-format on */
@@ -189,12 +206,17 @@ void ShowUsage(const char* program_name) {
 void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
   const char* kOptString = "h";
   const struct option long_options[] = {
-      {"help", no_argument, 0, 'h'},      {"info", no_argument, 0, 'i'},
-      {"force", no_argument, 0, 'f'},     {"dryrun", no_argument, 0, 'd'},
-      {"pkg", required_argument, 0, 'p'}, {0, 0, 0, 0},
+      {"help", no_argument, 0, 'h'},
+      {"info", no_argument, 0, 'i'},
+      {"force", no_argument, 0, 'f'},
+      {"dryrun", no_argument, 0, 'd'},
+      {"pkg", required_argument, 0, 'p'},
+      {"log_to", required_argument, 0, 'l'},
+      {0, 0, 0, 0},
   };
 
   flags->pkg_path = "";
+  flags->log_to = kDefaultLogFile;
 
   int opt;
   int longoption_index = 0;
@@ -215,6 +237,9 @@ void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
         break;
       case 'p':
         flags->pkg_path = std::string(optarg);
+        break;
+      case 'l':
+        flags->log_to = std::string(optarg);
         break;
       default:
         ShowUsage(argv[0]);

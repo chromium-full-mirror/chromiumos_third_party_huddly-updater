@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <base/logging.h>
 #include <stdlib.h>
 #include <unistd.h>
+
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
-#include <iostream>
 #include <string>
 
 #include "firmware.h"
@@ -103,8 +104,7 @@ bool Firmware::HasFile(const std::string& file_path) const {
 
 bool Firmware::Uncompress(const std::string& file_path,
                           std::string* err_msg) const {
-  std::cout << ".. Uncompressing " << file_path << " on " << pkg_dir_
-            << std::endl;
+  LOG(INFO) << ".. Uncompressing " << file_path << " on " << pkg_dir_;
   // TODO(porce): Consider using standard library.
   std::string command = "mkdir -p " + pkg_dir_ + " && cd " + pkg_dir_ +
                         " && unzip -o " + pkg_path_;
@@ -168,12 +168,12 @@ void Firmware::ShowInfo() const {
   std::string app_ver, bootloader_ver, hw_rev;
   ParseManifest(&app_ver, &bootloader_ver, &hw_rev);
 
-  std::cout << std::endl
+  LOG(INFO) << std::endl
             << "Firmware package:" << std::endl
             << "  dir:           " << pkg_dir_ << std::endl
             << "  bootloader:    " << bootloader_ver << std::endl
             << "  app:           " << app_ver << std::endl
-            << "  hw_rev:        " << hw_rev << std::endl;
+            << "  hw_rev:        " << hw_rev;
 }
 
 }  // namespace huddly

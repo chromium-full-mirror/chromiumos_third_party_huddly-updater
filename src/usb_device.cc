@@ -2,8 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <base/logging.h>
+
 #include <algorithm>
-#include <iostream>
 #include <string>
 
 #include "tools.h"
@@ -27,7 +28,7 @@ UsbDevice::UsbDevice(uint16_t vendor_id, uint16_t product_id)
 UsbDevice::~UsbDevice() {
   std::string err_msg;
   if (!Teardown(&err_msg)) {
-    std::cout << ".. error in teardown: " << err_msg << std::endl;
+    LOG(ERROR) << ".. error in teardown: " << err_msg;
   }
 }
 
@@ -63,8 +64,7 @@ bool UsbDevice::WaitForOnline(int timeout_sec, std::string* err_msg) {
     // API succeeded. Check the result.
     if (result) {
       uint64_t elapsed = (GetNowMilliSec() - begin) / 1000;
-      std::cout << ".. found after waiting for " << elapsed << " sec."
-                << std::endl;
+      LOG(INFO) << ".. found after waiting for " << elapsed << " sec.";
       return true;
     }
     // Suppress error and continue;
@@ -245,7 +245,7 @@ libusb_device* UsbDevice::GetDevice(libusb_context* ctx, std::string* err_msg) {
   int list_cnt = libusb_get_device_list(ctx, &dev_list);
   if (list_cnt < 0) {
     *err_msg += ".. failed to get device list: " + ErrCodeToErrMsg(list_cnt);
-    std::cout << *err_msg << std::endl;
+    LOG(ERROR) << *err_msg;
     return nullptr;
   }
 
@@ -255,8 +255,8 @@ libusb_device* UsbDevice::GetDevice(libusb_context* ctx, std::string* err_msg) {
 
     int ret = libusb_get_device_descriptor(dev_tmp, &desc);
     if (ret != 0) {
-      std::cout << ".. failed to get device descriptor: "
-                << ErrCodeToErrMsg(ret) << std::endl;
+      LOG(ERROR) << ".. failed to get device descriptor: "
+                 << ErrCodeToErrMsg(ret);
       // Don't give up yet.
       continue;
     }

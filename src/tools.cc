@@ -2,14 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <base/logging.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
+
 #include <fstream>
-#include <iostream>
 
 #include "tools.h"
 
@@ -28,7 +29,7 @@ bool RunCommand(const std::string& cmd, std::string* output) {
 #endif  // DEV_DEBUG
 
   if (verbose)
-    std::cout << "[CMD] " << cmd << std::endl;
+    LOG(INFO) << "[CMD] " << cmd;
   std::FILE* pipe(popen(cmd.c_str(), "r"));
   if (!pipe) {
     *output = "failed to open pipe";
@@ -39,7 +40,7 @@ bool RunCommand(const std::string& cmd, std::string* output) {
     result += buff;
   }
   if (verbose)
-    std::cout << "[OUT] " << std::endl << result << std::endl;
+    LOG(INFO) << "[OUT] " << result;
   pclose(pipe);
   *output = result;
   return true;

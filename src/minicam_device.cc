@@ -4,10 +4,11 @@
 
 #include "minicam_device.h"
 
+#include <base/logging.h>
 #include <endian.h>
+
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <memory>
 
 #include "stdint.h"
@@ -51,13 +52,13 @@ bool MinicamDevice::CheckIfExists() {
     // Error while checking. This does not mean check failed and it turned out
     // that the device does not exist.
     err_msg += ".. failed to check if the device exists or not";
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
   }
   return result;
 }
 
 bool MinicamDevice::RebootInMode(BootMode boot_mode, std::string* err_msg) {
-  std::cout << ".. setting boot mode: " << BootModeStr(boot_mode) << std::endl;
+  LOG(INFO) << ".. setting boot mode: " << BootModeStr(boot_mode);
 
   if (!SetBootMode(boot_mode, err_msg)) {
     *err_msg += ".. failed to rebooting in mode: ";
@@ -66,7 +67,7 @@ bool MinicamDevice::RebootInMode(BootMode boot_mode, std::string* err_msg) {
     return false;
   }
 
-  std::cout << ".. done setting boot mode. rebooting " << std::endl;
+  LOG(INFO) << ".. done setting boot mode. rebooting ";
 
   if (!Reboot(err_msg)) {
     *err_msg += ".. failed to reboot in mode: ";
@@ -95,34 +96,34 @@ bool MinicamDevice::WriteImage(int data_len,
                                uint8_t* data,
                                std::string* err_msg,
                                bool dry_run) const {
-  std::cout << ".. allocating buffer" << std::endl;
+  LOG(INFO) << ".. begin allocating buffer";
   if (!AllocateBuffer(data_len, err_msg)) {
     *err_msg += ".. failed to allocate buffer";
-    std::cout << *err_msg << std::endl;
+    LOG(ERROR) << *err_msg;
     return false;
   }
-  std::cout << ".. done allocating buffer. uploading image " << data_len
-            << " bytes" << std::endl
+  LOG(INFO) << ".. end allocating buffer. begin uploading image " << data_len
+            << " bytes"
             << "    ";
   if (!UploadImage(data_len, data, err_msg)) {
     *err_msg += ".. failed to upload image";
-    std::cout << *err_msg << std::endl;
+    LOG(ERROR) << *err_msg;
     return false;
   }
 
   if (dry_run) {
-    std::cout << ".. dry run mode. Skip committing" << std::endl;
+    LOG(INFO) << ".. dry run mode. Skip committing";
     return true;
   }
 
-  std::cout << ".. done uploading. committing... " << std::endl << "    ";
+  LOG(INFO) << ".. end uploading. begin committing... ";
   if (!Mv2Commit(0, data_len, err_msg)) {
     *err_msg += ".. failed to commit";
-    std::cout << *err_msg << std::endl;
+    LOG(INFO) << *err_msg;
     return false;
   }
 
-  std::cout << ".. done committing" << std::endl;
+  LOG(INFO) << ".. end committing";
   return true;
 }
 
@@ -133,18 +134,16 @@ void MinicamDevice::ShowInfo() {
   std::string app_ver;
 
   if (!GetHwRevision(&hw_rev, &err_msg)) {
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
     return;
   }
   GetVersion(&app_ver, &bootloader_ver);
 
-  printf(
-      "\n"
-      "Camera Peripheral:\n"
-      "  bootloader:  %s \n"
-      "  app:         %s \n"
-      "  hw_rev:      %s \n",
-      bootloader_ver.c_str(), app_ver.c_str(), hw_rev.c_str());
+  LOG(INFO) << std::endl
+            << "Camera Peripheral:" << std::endl
+            << "  bootloader:  " << bootloader_ver.c_str() << std::endl
+            << "  app:         " << app_ver.c_str() << std::endl
+            << "  hw_rev:      " << hw_rev.c_str();
 }
 
 bool MinicamDevice::GetHwRevision(std::string* hw_rev_str,
@@ -168,7 +167,7 @@ std::string MinicamDevice::QueryFirmwareVersion() const {
   std::string err_msg;
 
   if (!VendorRead(VendorRequest::VERSION, kVersionBytes, data, &err_msg)) {
-    std::cout << ".. failed in vendor reading: " << err_msg << std::endl;
+    LOG(ERROR) << ".. failed in vendor reading: " << err_msg;
     return "unknown";  //
   }
 
@@ -194,7 +193,7 @@ bool MinicamDevice::GetVersion(std::string* app_ver,
                              data, &err_msg);
   if (!ret) {
     // Possible errors are Pipe or IO related.
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
     *app_ver = "unknown";
     *bootloader_ver = "unknown";
     return false;
@@ -225,8 +224,7 @@ bool MinicamDevice::VendorRead(VendorRequest vendor_request,
     if (ControlTransfer(kRequestType, request, value, index, data_len, data,
                         err_msg)) {
       if (retry > 0) {
-        std::cout << ".. vendor read successful after " << retry << " retries"
-                  << std::endl;
+        LOG(INFO) << ".. vendor read successful after " << retry << " retries";
       }
       return true;
     }
@@ -255,8 +253,7 @@ bool MinicamDevice::VendorWrite(VendorRequest vendor_request,
     if (ControlTransfer(kRequestType, request, value, index, data_len, data,
                         err_msg)) {
       if (retry > 0) {
-        std::cout << ".. vendor write successful after " << retry << " retries"
-                  << std::endl;
+        LOG(INFO) << ".. vendor write successful after " << retry << " retries";
       }
       return true;
     }
@@ -299,7 +296,7 @@ bool MinicamDevice::IsBootloaderMode() const {
   BootMode boot_mode = BootMode::UNKNOWN;
   if (!GetBootMode(&boot_mode, &err_msg)) {
     err_msg += ".. failed to test if it is in Bootloader mode";
-    std::cout << err_msg << std::endl;
+    LOG(ERROR) << err_msg;
     return false;  // Fallback to assume App mode, which is most natural.
   }
   return boot_mode == BootMode::BOOTLOADER;
@@ -375,13 +372,12 @@ void MinicamDevice::ShowProgress(uint32_t offset, uint32_t data_len) const {
   static uint32_t percent_prev = 0;
   uint32_t percent = 100 * offset / data_len;
   if (percent % 10 == 0 && percent != percent_prev) {
-    std::cout << percent << "%..";
+    LOG(INFO) << percent << "%..";
     percent_prev = percent;
   }
 
   if (percent_prev == 100) {
     percent_prev = 0;  // reset for next
-    std::cout << std::endl;
   }
 }
 
@@ -399,9 +395,8 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
   memcpy(cmd + 1, &offset_le, sizeof(offset_le));
   memcpy(cmd + 1 + sizeof(offset_le), &size_le, sizeof(size_le));
   if (!Mv2Command(kCmdLen, cmd, 1, err_msg)) {
-    std::cout
-        << ".. failed to get ack in mv2_command. But proceed with the upgrade"
-        << std::endl;
+    LOG(INFO)
+        << ".. failed to get ack in mv2_command. But proceed with the upgrade";
     // keep going.
   }
 
@@ -425,28 +420,28 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
     switch (status) {
       case 'e':
         // TODO(porce): ShowProgress.
-        std::cout << "[e]";
+        LOG(INFO) << "[e]";
         break;
       case 'E':
         // TODO(porce): ShowProgress.
-        std::cout << "[E]" << std::endl;
+        LOG(INFO) << "[E]";
         break;
       case 'w':
         // TODO(porce): ShowProgress.
-        std::cout << "[w]";
+        LOG(INFO) << "[w]";
         break;
       case 'W':
-        std::cout << "[W]" << std::endl;
+        LOG(INFO) << "[W]";
         return true;
         break;
       case 'f':
-        std::cout << ".. Erase failure" << std::endl;
+        LOG(INFO) << ".. Erase failure";
         return false;
       case 'F':
-        std::cout << ".. Flash failure" << std::endl;
+        LOG(INFO) << ".. Flash failure" << std::endl;
         return false;
       case 'V':
-        std::cout << ".. Verification failed" << std::endl;
+        LOG(INFO) << ".. Verification failed" << std::endl;
         return false;
       default:
         char msg[100];
