@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <base/logging.h>
+#include <brillo/syslog_logging.h>
 #include <getopt.h>
 
 #include <cstdlib>
@@ -17,9 +18,6 @@
 namespace {
 
 const int kWaitRebootingTimeoutSec = 10;
-
-// TODO(porce): Investigate the permission of /var/log/huddly.log
-const char kDefaultLogFile[] = "/tmp/huddly.log";
 
 }  // namespace
 
@@ -67,7 +65,15 @@ int main(int argc, char* argv[]) {
     cmd_flags.forceful_upgrade = true;  // Override
   }
 
-  if (cmd_flags.log_to != "stdout") {
+  if (cmd_flags.log_to.empty()) {
+    // Default to Syslog.
+    brillo::InitLog(brillo::InitFlags::kLogToSyslog);
+  } else if (cmd_flags.log_to == "stdout") {
+    // Stdout.
+    logging::LoggingSettings logging_settings;
+    logging::InitLogging(logging_settings);
+  } else {
+    // A particular log file is specified.
     logging::LoggingSettings logging_settings;
     logging_settings.logging_dest = logging::LOG_TO_FILE;
     logging_settings.log_file = cmd_flags.log_to.c_str();
@@ -242,7 +248,7 @@ void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
   };
 
   flags->pkg_path = "";
-  flags->log_to = kDefaultLogFile;
+  flags->log_to = "";
   flags->prep_only = false;
   flags->burn_only = false;
   flags->switch_to_app_mode = false;
