@@ -168,12 +168,11 @@ void Firmware::ShowInfo() const {
   std::string app_ver, bootloader_ver, hw_rev;
   ParseManifest(&app_ver, &bootloader_ver, &hw_rev);
 
-  LOG(INFO) << std::endl
-            << "Firmware package:" << std::endl
-            << "  dir:           " << pkg_dir_ << std::endl
-            << "  bootloader:    " << bootloader_ver << std::endl
-            << "  app:           " << app_ver << std::endl
-            << "  hw_rev:        " << hw_rev;
+  LOG(INFO) << "Firmware package:";
+  LOG(INFO) << "  dir:           " << pkg_dir_;
+  LOG(INFO) << "  bootloader:    " << bootloader_ver;
+  LOG(INFO) << "  app:           " << app_ver;
+  LOG(INFO) << "  hw_rev:        " << hw_rev;
 }
 
 }  // namespace huddly

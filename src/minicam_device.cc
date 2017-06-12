@@ -139,11 +139,10 @@ void MinicamDevice::ShowInfo() {
   }
   GetVersion(&app_ver, &bootloader_ver);
 
-  LOG(INFO) << std::endl
-            << "Camera Peripheral:" << std::endl
-            << "  bootloader:  " << bootloader_ver.c_str() << std::endl
-            << "  app:         " << app_ver.c_str() << std::endl
-            << "  hw_rev:      " << hw_rev.c_str();
+  LOG(INFO) << "Camera Peripheral:";
+  LOG(INFO) << "  bootloader:  " << bootloader_ver.c_str();
+  LOG(INFO) << "  app:         " << app_ver.c_str();
+  LOG(INFO) << "  hw_rev:      " << hw_rev.c_str();
 }
 
 bool MinicamDevice::GetHwRevision(std::string* hw_rev_str,
