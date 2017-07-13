@@ -18,5 +18,10 @@ CXX_BINARY(huddly-updater): \
 	src/minicam_device.o \
 	src/tools.o \
 	src/usb_device.o
-all: CXX_BINARY(huddly-updater)
-clean: CLEAN(CXX_BINARY(huddly-updater))
+
+CXX_BINARY(huddly-manifest): \
+	src/manifest.o \
+	src/manifest_main.o
+
+all: CXX_BINARY(huddly-updater) CXX_BINARY(huddly-manifest)
+clean: CLEAN(CXX_BINARY(huddly-updater)) CLEAN(CXX_BINARY(huddly-manifest))
