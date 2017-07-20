@@ -35,6 +35,7 @@ class Flasher {
   // and would-be versions. If any of them is eligible to upgrade, say the
   // device is eligible to upgrade.
   void ShowUpgradeEligibility() const;
+  std::string GetUpgradeEligibilityMessage() const;
 
   bool FlashAll(std::string* err_msg) const;
   bool FlashWithFile(const std::string& file_path, std::string* err_msg) const;

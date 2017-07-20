@@ -79,6 +79,8 @@ bool Flasher::Init(std::string* err_msg) {
 }
 
 void Flasher::ShowUpgradeEligibility() const {
+  // For human eyes in interactive shell.
+  // See GetUpgradeEligibilityMessaage() for a single line.
   LOG(INFO) << "Upgrade plan: " << BoolToYesNo(IsEligibleForUpgrade())
             << std::endl
             << "  [" << BoolToYesNo(is_eligible_to_upgrade_boot_)
@@ -87,6 +89,13 @@ void Flasher::ShowUpgradeEligibility() const {
             << "  [" << BoolToYesNo(is_eligible_to_upgrade_app_)
             << "] App        " << std::setw(5) << pl_app_ver_ << " -> "
             << std::setw(5) << fw_app_ver_;
+}
+
+std::string Flasher::GetUpgradeEligibilityMessage() const {
+  // For log line. See ShowUpgradeEligibility() for multilines.
+  return ".. Upgrade plan: " + BoolToYesNo(IsEligibleForUpgrade()) +
+         " [Bootloader] " + pl_bootloader_ver_ + " -> " + fw_bootloader_ver_ +
+         " [App] " + pl_app_ver_ + " -> " + fw_app_ver_;
 }
 
 bool Flasher::FlashAll(std::string* err_msg) const {

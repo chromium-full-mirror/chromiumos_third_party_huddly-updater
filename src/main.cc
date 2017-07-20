@@ -124,13 +124,11 @@ int main(int argc, char* argv[]) {
   }
 
   if (do_prep) {
+    LOG(INFO) << flasher.GetUpgradeEligibilityMessage();
     if (!flasher.IsEligibleForUpgrade()) {
-      // Not necessarily an error, but propagates useful info.
-      LOG(INFO) << ".. is not eligible for firmware upgrade";
+      LOG(INFO) << ".. No need to update. Exiting huddly-updater.";
       return EXIT_SUCCESS;
     }
-
-    flasher.ShowUpgradeEligibility();
 
     if (!SwitchMode(huddly::BootMode::APP, huddly::BootMode::BOOTLOADER,
                     &err_msg)) {
