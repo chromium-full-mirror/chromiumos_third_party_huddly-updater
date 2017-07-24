@@ -25,3 +25,14 @@ CXX_BINARY(huddly-manifest): \
 
 all: CXX_BINARY(huddly-updater) CXX_BINARY(huddly-manifest)
 clean: CLEAN(CXX_BINARY(huddly-updater)) CLEAN(CXX_BINARY(huddly-manifest))
+
+UNITTEST_LIBS := $(shell gtest-config --libs)
+
+CXX_BINARY(manifest-unittest): LDLIBS += $(UNITTEST_LIBS)
+CXX_BINARY(manifest-unittest): \
+	src/manifest.o \
+	src/manifest_unittest.o \
+	src/testrunner.o
+
+tests: TEST(CXX_BINARY(manifest-unittest))
+clean: CLEAN(CXX_BINARY(manifest-unittest))

@@ -151,7 +151,7 @@ void Manifest::ParseFirmwareFileVersions(base::DictionaryValue* dic,
 }
 
 std::string Manifest::ListToStr(base::ListValue* list_val,
-                                std::string separator) {
+                                const std::string& separator) {
   if (!list_val) {
     std::cout << "ListToStr: null list value"
               << "\n";
@@ -166,7 +166,8 @@ std::string Manifest::ListToStr(base::ListValue* list_val,
                 << "\n";
       continue;
     }
-    result.append(std::to_string(val) + separator);
+    result.append(std::to_string(val));
+    result.append(separator);
   }
   result.pop_back();  // Drop the last separator;
 

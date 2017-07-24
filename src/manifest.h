@@ -15,6 +15,7 @@ namespace huddly {
 class Manifest {
  public:
   explicit Manifest(const base::FilePath& path) : path_(path) {}
+  Manifest() = default;
   ~Manifest() = default;
 
   bool ParseFile();
@@ -26,23 +27,25 @@ class Manifest {
                                  std::string* boot_ver);
 
   std::string GetFileContent(const base::FilePath& path);
-  std::string ListToStr(base::ListValue* list_val, std::string separator);
+  std::string ListToStr(base::ListValue* list_val,
+                        const std::string& separator);
   void Dump();  // show the result of parsing.
 
-  std::string path() const { return path_.value(); }
+  void set_path(const base::FilePath& path) { path_ = path; }
+  base::FilePath path() const { return path_; }
   std::string app_ver() const { return app_ver_; }
   std::string boot_ver() const { return boot_ver_; }
   std::string hw_rev() const { return hw_rev_; }
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(Manifest);
-
   base::FilePath path_;
 
   int manifest_ver_;
   std::string app_ver_;
   std::string boot_ver_;
   std::string hw_rev_;
+
+  DISALLOW_COPY_AND_ASSIGN(Manifest);
 };
 
 }  // namespace huddly
