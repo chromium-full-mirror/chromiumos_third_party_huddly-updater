@@ -25,13 +25,9 @@ class Firmware {
   std::string app_version() const { return app_version_; }
   std::string bootloader_version() const { return bootloader_version_; }
 
-  std::string QueryAppVersion();
-  std::string QueryBootloaderVersion();
-
-  // TODO(porce): Specify the path for an example manifest.txt
-  bool ParseManifest(std::string* app_ver,
-                     std::string* bootloader_ver,
-                     std::string* hw_rev) const;
+  bool ParseManifestJSON(std::string* app_ver,
+                         std::string* bootloader_ver,
+                         std::string* hw_rev) const;
 
   // Show firmware versions and the supported hardware revisions
   // of firmware package file.

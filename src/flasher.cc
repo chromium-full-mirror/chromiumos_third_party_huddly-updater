@@ -161,7 +161,7 @@ bool Flasher::FlashWithFile(const std::string& file_path,
 }
 
 void Flasher::StoreFirmwareInfo() {
-  firmware_.ParseManifest(&fw_app_ver_, &fw_bootloader_ver_, &fw_hw_rev_);
+  firmware_.ParseManifestJSON(&fw_app_ver_, &fw_bootloader_ver_, &fw_hw_rev_);
 }
 
 void Flasher::StorePeripheralInfo() {

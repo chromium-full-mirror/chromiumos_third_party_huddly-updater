@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "firmware.h"
+
 #include <base/logging.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -11,7 +13,7 @@
 #include <fstream>
 #include <string>
 
-#include "firmware.h"
+#include "manifest.h"
 #include "tools.h"
 
 namespace huddly {
@@ -25,22 +27,8 @@ const char kManualPkgDir[] = "/tmp/huddly/";
 // Huddly firmware binary and manifest files, relative to the base directory.
 const char kFirmwareApp[] = "bin/huddly.bin";
 const char kFirmwareBootloader[] = "bin/huddly_boot.bin";
-const char kFirmwareManifest[] = "manifest.txt";
-
-bool ParseManifestLine(const std::string& line,
-                       std::string* key,
-                       std::string* value) {
-  const char* kDelimiter = ":";
-  // TODO(crbug.com/719567): Use libchrome for string splitting.
-  size_t pos = line.find(kDelimiter);
-  if (pos == std::string::npos || pos == 0) {
-    return false;
-  }
-  *key = line.substr(0, pos);
-  *value = line.substr(pos + 1);
-  return true;
-}
-
+const char kFirmwareManifest[] = "manifest.json";
+const char kDefaultVerStr[] = "unknown";
 }  // namespace
 
 Firmware::Firmware(const std::string& pkg_path) : pkg_path_(pkg_path) {
@@ -112,61 +100,29 @@ bool Firmware::Uncompress(const std::string& file_path,
   return RunCommand(command, err_msg);
 }
 
-std::string Firmware::QueryAppVersion() {
-  // TODO(oystein) : Prep the meta file
-  // TODO(porce) : Read from meta file
-  const std::string kDefaultAppVersion = "0.0.8";
-  app_version_ = kDefaultAppVersion;
-  return kDefaultAppVersion;
-}
+bool Firmware::ParseManifestJSON(std::string* app_ver,
+                                 std::string* bootloader_ver,
+                                 std::string* hw_rev) const {
+  const base::FilePath path(FILE_PATH_LITERAL(manifest_path_.c_str()));
+  huddly::Manifest manifest(path);
 
-std::string Firmware::QueryBootloaderVersion() {
-  // TODO(oystein) : Prep the meta file
-  // TODO(porce) : Read from meta file
-  const std::string kDefaultBootloaderVersion = "0.0.8";
-  bootloader_version_ = kDefaultBootloaderVersion;
-  return kDefaultBootloaderVersion;
-}
-
-bool Firmware::ParseManifest(std::string* app_ver,
-                             std::string* bootloader_ver,
-                             std::string* hw_rev) const {
-  const char kKeyAppVer[] = "mv2_app.version";
-  const char kKeyBootloaderVer[] = "mv2_boot.version";
-  const char kKeyHwRev[] = "hw_rev";
-  const char kDefaultVerStr[] = "unknown. check manifest.txt";
-
-  *app_ver = kDefaultVerStr;
-  *bootloader_ver = kDefaultVerStr;
-  *hw_rev = kDefaultVerStr;
-
-  std::ifstream file(manifest_path_.c_str());
-
-  while (file.good()) {
-    std::string line;
-    getline(file, line);
-
-    std::string key, value;
-    if (!ParseManifestLine(line, &key, &value)) {
-      continue;
-    }
-
-    if (key == kKeyAppVer) {
-      *app_ver = value;
-    } else if (key == kKeyBootloaderVer) {
-      *bootloader_ver = value;
-    } else if (key == kKeyHwRev) {
-      *hw_rev = value;
-    }
+  if (!manifest.ParseFile()) {
+    // Fallback on defaults
+    *app_ver = kDefaultVerStr;
+    *bootloader_ver = kDefaultVerStr;
+    *hw_rev = kDefaultVerStr;
+    return false;
   }
 
-  // Integrity test
-  return (*app_ver != "" && *bootloader_ver != "" && *hw_rev == "");
+  *app_ver = manifest.app_ver();
+  *bootloader_ver = manifest.boot_ver();
+  *hw_rev = manifest.hw_rev();
+  return true;
 }
 
 void Firmware::ShowInfo() const {
   std::string app_ver, bootloader_ver, hw_rev;
-  ParseManifest(&app_ver, &bootloader_ver, &hw_rev);
+  ParseManifestJSON(&app_ver, &bootloader_ver, &hw_rev);
 
   LOG(INFO) << "Firmware package:";
   LOG(INFO) << "  dir:           " << pkg_dir_;

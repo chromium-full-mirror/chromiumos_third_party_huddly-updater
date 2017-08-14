@@ -15,6 +15,7 @@ CXX_BINARY(huddly-updater): \
 	src/firmware.o \
 	src/flasher.o \
 	src/main.o \
+	src/manifest.o \
 	src/minicam_device.o \
 	src/tools.o \
 	src/usb_device.o
