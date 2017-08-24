@@ -5,6 +5,7 @@
 #include "firmware.h"
 
 #include <base/logging.h>
+#include <iostream>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -124,11 +125,13 @@ void Firmware::ShowInfo() const {
   std::string app_ver, bootloader_ver, hw_rev;
   ParseManifestJSON(&app_ver, &bootloader_ver, &hw_rev);
 
-  LOG(INFO) << "Firmware package:";
-  LOG(INFO) << "  dir:           " << pkg_dir_;
-  LOG(INFO) << "  bootloader:    " << bootloader_ver;
-  LOG(INFO) << "  app:           " << app_ver;
-  LOG(INFO) << "  hw_rev:        " << hw_rev;
+  // Bypass the logging facility. libchrome logging does not honor stdout
+  // properly. Instead it goes to stderr.
+  std::cout << "Firmware package:" << std::endl;
+  std::cout << "  dir:           " << pkg_dir_ << std::endl;
+  std::cout << "  bootloader:    " << bootloader_ver << std::endl;
+  std::cout << "  app:           " << app_ver << std::endl;
+  std::cout << "  hw_rev:        " << hw_rev << std::endl;
 }
 
 }  // namespace huddly

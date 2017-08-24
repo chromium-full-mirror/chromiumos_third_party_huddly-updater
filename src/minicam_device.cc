@@ -6,6 +6,7 @@
 
 #include <base/logging.h>
 #include <endian.h>
+#include <iostream>
 
 #include <cstdlib>
 #include <cstring>
@@ -134,15 +135,17 @@ void MinicamDevice::ShowInfo() {
   std::string app_ver;
 
   if (!GetHwRevision(&hw_rev, &err_msg)) {
-    LOG(ERROR) << err_msg;
+    std::cerr << err_msg << std::endl;
     return;
   }
   GetVersion(&app_ver, &bootloader_ver);
 
-  LOG(INFO) << "Camera Peripheral:";
-  LOG(INFO) << "  bootloader:  " << bootloader_ver.c_str();
-  LOG(INFO) << "  app:         " << app_ver.c_str();
-  LOG(INFO) << "  hw_rev:      " << hw_rev.c_str();
+  // Bypass the logging facility. libchrome logging does not honor stdout
+  // properly. Instead it goes to stderr.
+  std::cout << "Camera Peripheral:" << std::endl;
+  std::cout << "  bootloader:  " << bootloader_ver.c_str() << std::endl;
+  std::cout << "  app:         " << app_ver.c_str() << std::endl;
+  std::cout << "  hw_rev:      " << hw_rev.c_str() << std::endl;
 }
 
 bool MinicamDevice::GetHwRevision(std::string* hw_rev_str,
