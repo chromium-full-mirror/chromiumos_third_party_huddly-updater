@@ -142,6 +142,14 @@ int main(int argc, char* argv[]) {
     if (!flasher.FlashAll(&err_msg)) {
       err_msg += ".. failed to flash";
       LOG(ERROR) << err_msg;
+
+      err_msg = "";
+      if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
+                      &err_msg)) {
+        err_msg += ".. failed to reboot back to APP mode";
+        LOG(ERROR) << err_msg;
+      }
+
       return EXIT_FAILURE;
     }
 

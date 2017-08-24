@@ -109,6 +109,7 @@ bool Flasher::FlashAll(std::string* err_msg) const {
               << fw_bootloader_ver_;
     if (!FlashWithFile(firmware_.bootloader_path(), err_msg)) {
       *err_msg += ".. failed to upgrade bootloader";
+      return false;
     }
   }
 
@@ -116,6 +117,7 @@ bool Flasher::FlashAll(std::string* err_msg) const {
     LOG(INFO) << "Upgrading App: " << pl_app_ver_ << " -> " << fw_app_ver_;
     if (!FlashWithFile(firmware_.app_path(), err_msg)) {
       *err_msg += ".. failed to upgrade app";
+      return false;
     }
   }
 

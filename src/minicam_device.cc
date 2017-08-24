@@ -223,6 +223,7 @@ bool MinicamDevice::VendorRead(VendorRequest vendor_request,
 
   const uint8_t kUsbRetryLimit = 20;
   for (uint8_t retry = 0; retry < kUsbRetryLimit; retry++) {
+    *err_msg = "";  // Suppress previous errors within a single retry set.
     if (ControlTransfer(kRequestType, request, value, index, data_len, data,
                         err_msg)) {
       if (retry > 0) {
@@ -234,6 +235,7 @@ bool MinicamDevice::VendorRead(VendorRequest vendor_request,
     SleepMilliSec(500);
   }
   *err_msg += ".. failed in vendor read: " + std::to_string(request);
+  *err_msg += " (retried " + std::to_string(kUsbRetryLimit) + ")";
   return false;
 }
 
@@ -252,6 +254,7 @@ bool MinicamDevice::VendorWrite(VendorRequest vendor_request,
 
   const uint8_t kUsbRetryLimit = 20;
   for (uint8_t retry = 0; retry < kUsbRetryLimit; retry++) {
+    *err_msg = "";  // Suppress previous errors within a single retry set.
     if (ControlTransfer(kRequestType, request, value, index, data_len, data,
                         err_msg)) {
       if (retry > 0) {
@@ -265,6 +268,7 @@ bool MinicamDevice::VendorWrite(VendorRequest vendor_request,
   }
 
   *err_msg += ".. failed in vendor write: " + std::to_string(request);
+  *err_msg += " (retried " + std::to_string(kUsbRetryLimit) + ")";
   return false;
 }
 
@@ -348,6 +352,9 @@ bool MinicamDevice::UploadImage(uint32_t data_len,
     }
 
     ShowProgress(offset, data_len);
+
+    // Mv2WriteChunk has a retry logic inside.
+    // No need to make this function pesistent.
     if (!Mv2WriteChunk(offset, chunk_size, data + offset, err_msg)) {
       // TODO(porce): How to recover in the middle?
       char msg[100];
@@ -355,7 +362,11 @@ bool MinicamDevice::UploadImage(uint32_t data_len,
                "\n!! failed to write in offset %u data_len %u chunksize %u",
                offset, data_len, chunk_size);
       *err_msg += msg;
-      continue;
+
+      LOG(INFO) << "Mv2WriteChunk failed. Probably the device is lost. "
+                   "Was it unplugged?";
+      LOG(INFO) << "Stop uploading image. Start bailout sequence..";
+      return false;
     }
     sum += chunk_size;
   }
@@ -410,10 +421,12 @@ bool MinicamDevice::Mv2Commit(uint32_t offset,
   while (GetNowMilliSec() < expiry) {
     const uint32_t kDataLen = 5;
     uint8_t data[kDataLen];
+
     if (!Mv2Read(kDataLen, data, err_msg)) {
-      // failed to read the status. Keep trying. Don't give up.
-      SleepMilliSec(200);  // 0.2 sec
-      continue;
+      // failed to read the status. Mv2Read itself has an embedded retry logic.
+      // Do not need to repeat extra retry. Retrun failure.
+      LOG(INFO) << "Mv2Read failed. Start bailout sequence..";
+      return false;
     }
 
     uint8_t status = data[0];
@@ -512,6 +525,14 @@ bool MinicamDevice::Mv2Command(uint32_t cmd_len,
                                uint8_t* cmd,
                                uint32_t retries,
                                std::string* err_msg) const {
+  // Note Mv2Command implements an outer loop of retries,
+  // on top of the Mv2Write() and Mv2GetAck()'s internal
+  // retry mechanism (which is implemented within ControlTransfer().
+  // It is of a question if this level of retries is necessary or not, knowing
+  // the outer loop will increase the timeout drastically. Since this solely
+  // depends on the vendor's device characteristics, a change of this logic
+  // should be consulted with the vendor.
+
   for (uint32_t retry = 0; retry < retries; retry++) {
     if (!Mv2Write(cmd_len, cmd, err_msg)) {
       continue;  // continue to retry.
