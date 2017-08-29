@@ -61,7 +61,11 @@ bool Flasher::Init(std::string* err_msg) {
 
   LOG(INFO) << ".. camera detected: " << minidev_app.GetId();
 
-  StorePeripheralInfo();  // Invoke while in App mode.
+  // Invoke while in App mode.
+  if (!StorePeripheralInfo(err_msg)) {
+    *err_msg += ".. failed to store peripheral info";
+    return false;
+  }
   StoreFirmwareInfo();
 
   // TODO(porce): When fw_hw_rev is a set, See if pl_hw_rev is a member of
@@ -166,17 +170,25 @@ void Flasher::StoreFirmwareInfo() {
   firmware_.ParseManifestJSON(&fw_app_ver_, &fw_bootloader_ver_, &fw_hw_rev_);
 }
 
-void Flasher::StorePeripheralInfo() {
+bool Flasher::StorePeripheralInfo(std::string* err_msg) {
   // This special routine is a workaround:
   // The App version can be queries only in the App mode.
   MinicamDevice minidev_app(kVendorId, kProductIdApp);
 
-  std::string err_msg;
-  minidev_app.Setup(&err_msg);
-  minidev_app.GetVersion(&pl_app_ver_, &pl_bootloader_ver_);
-  minidev_app.GetHwRevision(&pl_hw_rev_, &err_msg);
+  if (!minidev_app.Setup(err_msg)) {
+    *err_msg += ".. failed to setup minidev: ";
+    return false;
+  }
+  if (!minidev_app.GetVersion(&pl_app_ver_, &pl_bootloader_ver_)) {
+    *err_msg += ".. failed to get app version: ";
+    return false;
+  }
+  if (!minidev_app.GetHwRevision(&pl_hw_rev_, err_msg)) {
+    *err_msg += ".. failed to get hw revision: ";
+    return false;
+  }
 
-  return;
+  return true;
 }
 
 }  // namespace huddly
