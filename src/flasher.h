@@ -50,7 +50,7 @@ class Flasher {
 
   // Updates pl_app_ver_, pl_bootloader_ver_, pl_hw_rev_ with information
   // from the attached Huddly camera device.
-  void StorePeripheralInfo();
+  bool StorePeripheralInfo(std::string* err_msg);
 
   // TODO(porce): make pointers / references protected during active flash op.
   const Firmware& firmware_;
