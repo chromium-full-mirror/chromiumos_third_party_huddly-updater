@@ -105,6 +105,7 @@ class MinicamDevice : public UsbDevice {
                   uint32_t retries,
                   std::string* err_msg) const;
   bool Mv2GetAck() const;
+  std::string FormatVersion(uint8_t* data) const;
 };
 
 }  // namespace huddly

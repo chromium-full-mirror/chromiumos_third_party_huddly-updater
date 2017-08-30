@@ -28,6 +28,10 @@ const uint32_t kChunkSizeBytes = 500;
 const uint64_t kMv2ReadTimeout = 500;
 const uint64_t kTypicalCommitTimeMs = 30000;
 
+// Handling firmware response from huddly.
+const uint8_t kAppVersionOffset= 1;
+const uint8_t kBootloaderVersionOffset= 5;
+
 uint16_t BootModeToProductId(BootMode mode) {
   switch (mode) {
     case BootMode::APP:
@@ -201,12 +205,9 @@ bool MinicamDevice::GetVersion(std::string* app_ver,
     return false;
   }
 
-  char str[6];
-  // Decimal presentation.
-  snprintf(str, sizeof(str), "%u.%u.%u", data[3], data[2], data[1]);
-  *app_ver = str;
-  snprintf(str, sizeof(str), "%u.%u.%u", data[7], data[6], data[5]);
-  *bootloader_ver = str;
+  // Decimal representation.
+  *app_ver = FormatVersion(data + kAppVersionOffset);
+  *bootloader_ver = FormatVersion(data + kBootloaderVersionOffset);
 
   return true;
 }
@@ -557,6 +558,17 @@ bool MinicamDevice::Mv2GetAck() const {
 
   // Only return value (boolean) matters for this purpose.
   return Mv2Read(sizeof(data), &data, &err_msg);
+}
+
+// Assumes firmware version has 3 separate bytes
+// stored in reverse order.
+std::string MinicamDevice::FormatVersion(uint8_t* data) const{
+  if(sizeof(data) < 3){
+    return "unknown";
+  }
+  return std::to_string(data[2]) + "." +
+         std::to_string(data[1]) + "." +
+         std::to_string(data[0]);
 }
 
 }  // namespace huddly
