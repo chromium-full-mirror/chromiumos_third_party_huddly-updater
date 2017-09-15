@@ -42,6 +42,10 @@ bool SwitchMode(huddly::BootMode from,
 // the Huddly peripheral in use.
 void ShowInfo(const CmdlineFlags& cmd_flags);
 
+// Configures the number of streams sent
+// from Huddly camera to the desired value.
+void ConfigStreamMode();
+
 // Show command line argument options.
 void ShowUsage(const char* program_name);
 
@@ -127,6 +131,7 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << flasher.GetUpgradeEligibilityMessage();
     if (!flasher.IsEligibleForUpgrade()) {
       LOG(INFO) << ".. No need to update. Exiting huddly-updater.";
+      ConfigStreamMode();
       return EXIT_SUCCESS;
     }
 
@@ -164,6 +169,7 @@ int main(int argc, char* argv[]) {
 
     LOG(INFO) << ".. upgrade complete.";
   }
+
   return EXIT_SUCCESS;
 }
 
@@ -213,6 +219,41 @@ void ShowInfo(const CmdlineFlags& cmd_flags) {
     return;
   }
   minidev.ShowInfo();
+}
+
+void ConfigStreamMode() {
+  const huddly::StreamMode kMode = huddly::StreamMode::DUAL;
+  huddly::MinicamDevice minidev(huddly::kVendorId, huddly::kProductIdApp);
+  std::string err_msg;
+  if (!minidev.Setup(&err_msg)) {
+    LOG(ERROR) << err_msg;
+    return;
+  }
+
+  huddly::StreamMode current_mode;
+  if (!minidev.GetStreamMode(&current_mode)) {
+    minidev.Teardown(&err_msg);
+    LOG(ERROR) << "Failed to get stream mode.";
+    return;
+  }
+
+  if (current_mode == kMode) {
+    minidev.Teardown(&err_msg);
+    LOG(INFO) << "Already in " << huddly::StreamModeToStr(kMode)
+              << " mode. Quitting.";
+    return;
+  }
+
+  if (!minidev.SetStreamMode(kMode, &err_msg)) {
+    minidev.Teardown(&err_msg);
+    LOG(ERROR) << "failed to set stream mode " << err_msg;
+    return;
+  }
+
+  LOG(INFO) << "Changed stream mode from "
+            << huddly::StreamModeToStr(current_mode) << " to "
+            << huddly::StreamModeToStr(kMode) << ". Rebooting.";
+  minidev.Reboot(&err_msg);
 }
 
 void ShowUsage(const char* program_name) {
