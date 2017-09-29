@@ -29,8 +29,8 @@ const uint64_t kMv2ReadTimeout = 500;
 const uint64_t kTypicalCommitTimeMs = 30000;
 
 // Handling firmware response from huddly.
-const uint8_t kAppVersionOffset = 1;
-const uint8_t kBootloaderVersionOffset = 5;
+const uint8_t kAppVersionOffset= 1;
+const uint8_t kBootloaderVersionOffset= 5;
 
 uint16_t BootModeToProductId(BootMode mode) {
   switch (mode) {
@@ -42,25 +42,6 @@ uint16_t BootModeToProductId(BootMode mode) {
     case BootMode::UNKNOWN:
     default:
       return kProductIdInvalid;
-  }
-}
-
-std::string StreamModeToStr(StreamMode stream_mode) {
-  switch (stream_mode) {
-    case StreamMode::SINGLE:
-      return "Single";
-    case StreamMode::DUAL:
-      return "Dual";
-    case StreamMode::TRIPLE:
-      return "Triple";
-    case StreamMode::WRITE_ENABLE:
-      return "Write Enable";
-    default:
-      uint16_t unknown_val = static_cast<uint16_t>(stream_mode);
-      char return_string[15];
-      snprintf(return_string, sizeof(return_string), "UNKNOWN:0x%04x",
-               unknown_val);
-      return return_string;
   }
 }
 
@@ -290,65 +271,6 @@ bool MinicamDevice::VendorWrite(VendorRequest vendor_request,
   *err_msg += ".. failed in vendor write: " + std::to_string(request);
   *err_msg += " (retried " + std::to_string(kUsbRetryLimit) + ")";
   return false;
-}
-
-bool MinicamDevice::GetStreamMode(StreamMode* stream_mode) const {
-  const uint8_t kRequestType = 0xa1;  // UVC command.
-  const uint8_t kRequest = 0x81;      // GET_CUR.
-  const uint16_t kValue = 0x0100;     // XU_CONTROL value 0x0001
-  const uint16_t kIndex = 0x0400;     // Unit number 4, interface 0
-  const uint32_t kDataLen = 2;
-  uint8_t data[kDataLen];
-  uint16_t mode_val;
-  std::string err_msg;
-
-  bool ret = ControlTransfer(kRequestType, kRequest, kValue, kIndex, kDataLen,
-                             data, &err_msg);
-
-  if (!ret) {
-    LOG(ERROR) << err_msg;
-    return false;
-  }
-
-  // First treat as little endian, convert to host endian after.
-  mode_val = (data[1] << 8) | data[0];
-  *stream_mode = static_cast<StreamMode>(le16toh(mode_val));
-
-  return true;
-}
-
-bool MinicamDevice::SetStreamMode(StreamMode stream_mode,
-                                  std::string* err_msg) const {
-  const uint8_t kRequestType = 0x21;
-  const uint8_t kRequest = 0x01;
-  const uint16_t kValue = 0x0100;
-  const uint16_t kIndex = 0x0400;
-  const uint32_t kDataLen = 2;
-  uint8_t data[kDataLen];
-  uint16_t mode_val = htole16(static_cast<uint16_t>(StreamMode::WRITE_ENABLE));
-
-  data[0] = mode_val;
-  data[1] = mode_val >> 8;
-  bool ret = ControlTransfer(kRequestType, kRequest, kValue, kIndex, kDataLen,
-                             data, err_msg);
-
-  if (!ret) {
-    *err_msg += " ... failed to write enable camera";
-    return false;
-  }
-
-  mode_val = htole16(static_cast<uint16_t>(stream_mode));
-  data[0] = mode_val;
-  data[1] = mode_val >> 8;
-  ret = ControlTransfer(kRequestType, kRequest, kValue, kIndex, kDataLen, data,
-                        err_msg);
-
-  if (!ret) {
-    *err_msg += "... failed to set stream configuration";
-    return false;
-  }
-
-  return true;
 }
 
 bool MinicamDevice::GetBootMode(BootMode* boot_mode,
@@ -638,8 +560,14 @@ bool MinicamDevice::Mv2GetAck() const {
   return Mv2Read(sizeof(data), &data, &err_msg);
 }
 
-std::string MinicamDevice::FormatVersion(uint8_t* data) const {
-  return std::to_string(data[2]) + "." + std::to_string(data[1]) + "." +
+// Assumes firmware version has 3 separate bytes
+// stored in reverse order.
+std::string MinicamDevice::FormatVersion(uint8_t* data) const{
+  if(sizeof(data) < 3){
+    return "unknown";
+  }
+  return std::to_string(data[2]) + "." +
+         std::to_string(data[1]) + "." +
          std::to_string(data[0]);
 }
 

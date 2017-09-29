@@ -116,6 +116,14 @@ bool UsbDevice::Setup(std::string* err_msg) {
     return false;
   }
 
+  /*  TODO(porce): Investigate the need of configuring Huddly camera
+    int configuration = 1;  // bConfigurationValue
+    if ((ret = libusb_set_configuration(dev_handle_, configuration)) != 0) {
+      *err_msg = ErrCodeToErrMsg(ret);
+      return false;
+    }
+  */
+
   if (!ClaimInterface(err_msg)) {
     *err_msg += ".. failed to setup " + GetId();
     Teardown(err_msg);  // Escape sequence. No return check.
