@@ -42,6 +42,10 @@ bool SwitchMode(huddly::BootMode from,
 // the Huddly peripheral in use.
 void ShowInfo(const CmdlineFlags& cmd_flags);
 
+// Configures the number of streams sent
+// from Huddly camera to the desired value.
+bool ConfigStreamMode();
+
 // Show command line argument options.
 void ShowUsage(const char* program_name);
 
@@ -126,7 +130,12 @@ int main(int argc, char* argv[]) {
   if (do_prep) {
     LOG(INFO) << flasher.GetUpgradeEligibilityMessage();
     if (!flasher.IsEligibleForUpgrade()) {
-      LOG(INFO) << ".. No need to update. Exiting huddly-updater.";
+
+      // If configuring stream mode fails, or is not necessary, display message
+      // and quit.
+      if(!ConfigStreamMode())
+        LOG(INFO) << ".. Exiting huddly-updater.";
+
       return EXIT_SUCCESS;
     }
 
@@ -164,6 +173,7 @@ int main(int argc, char* argv[]) {
 
     LOG(INFO) << ".. upgrade complete.";
   }
+
   return EXIT_SUCCESS;
 }
 
@@ -215,22 +225,56 @@ void ShowInfo(const CmdlineFlags& cmd_flags) {
   minidev.ShowInfo();
 }
 
+bool ConfigStreamMode() {
+  const huddly::StreamMode kMode = huddly::StreamMode::DUAL;
+  huddly::MinicamDevice minidev(huddly::kVendorId, huddly::kProductIdApp);
+  std::string err_msg;
+  if (!minidev.Setup(&err_msg)) {
+    LOG(ERROR) << err_msg;
+    return false;
+  }
+
+  huddly::StreamMode current_mode;
+  if (!minidev.GetStreamMode(&current_mode)) {
+    minidev.Teardown(&err_msg);
+    LOG(ERROR) << "Failed to get stream mode.";
+    return false;
+  }
+
+  if (current_mode == kMode) {
+    minidev.Teardown(&err_msg);
+    LOG(INFO) << ".. Already in " << huddly::StreamModeToStr(kMode) << " mode.";
+    return false;
+  }
+
+  if (!minidev.SetStreamMode(kMode, &err_msg)) {
+    minidev.Teardown(&err_msg);
+    LOG(ERROR) << "failed to set stream mode " << err_msg;
+    return false;
+  }
+
+  LOG(INFO) << "Changed stream mode from "
+            << huddly::StreamModeToStr(current_mode) << " to "
+            << huddly::StreamModeToStr(kMode) << ". Rebooting.";
+  minidev.Reboot(&err_msg);
+  return true;
+}
+
 void ShowUsage(const char* program_name) {
-  // TODO(porce): Refactor using const string.
   LOG(INFO) << "Show usage";
   /* clang-format off */
   printf("\n"
     "Usage: %s [--option(s)]\n"
-    "  --help:    Show this usage.\n"
-    "  --info:    Show firmware and peripheral information.\n"
-    "  --force:   Force the upgrade ignoring the upgrade eligibility check.\n"
-    "  --dryrun:  Dryrun. Do everything except for final committment.\n"
-    "  --pkg:     Specify the absolute path for firmware package file.\n"
-    "  --log_to:  Path to log file. stdout is legal. \n"
-    "  --prep:    Prep only, without entering the burning step.\n"
-    "  --burn:    Burn only, without prepping step.\n"
     "  --app:     Switch to App mode and reboot.\n"
     "  --boot:    Switch to Boot mode and reboot.\n"
+    "  --burn:    Burn only, without prepping step.\n"
+    "  --dryrun:  Dryrun. Do everything except for final committment.\n"
+    "  --force:   Force the upgrade ignoring the upgrade eligibility check.\n"
+    "  --help:    Show this message and quit.\n"
+    "  --info:    Show firmware and peripheral information.\n"
+    "  --log_to:  Path to log file. stdout is legal.\n"
+    "  --pkg:     Specify the absolute path for firmware package file.\n"
+    "  --prep:    Prep only, without entering the burning step.\n"
     "\n",
     program_name);
   /* clang-format on */
@@ -240,16 +284,16 @@ void ShowUsage(const char* program_name) {
 void ParseArgs(int argc, char* argv[], CmdlineFlags* flags) {
   const char* kOptString = "h";
   const struct option long_options[] = {
-      {"help", no_argument, 0, 'h'},
-      {"info", no_argument, 0, 'i'},
-      {"force", no_argument, 0, 'f'},
-      {"dryrun", no_argument, 0, 'd'},
-      {"pkg", required_argument, 0, 'p'},
+      {"app",    no_argument,       0, 'a'},
+      {"boot",   no_argument,       0, 'b'},
+      {"burn",   no_argument,       0, 'u'},
+      {"dryrun", no_argument,       0, 'd'},
+      {"force",  no_argument,       0, 'f'},
+      {"help",   no_argument,       0, 'h'},
+      {"info",   no_argument,       0, 'i'},
       {"log_to", required_argument, 0, 'l'},
-      {"prep", no_argument, 0, 'r'},
-      {"burn", no_argument, 0, 'u'},
-      {"app", no_argument, 0, 'a'},
-      {"boot", no_argument, 0, 'b'},
+      {"pkg",    required_argument, 0, 'p'},
+      {"prep",   no_argument,       0, 'r'},
       {0, 0, 0, 0},
   };
 
