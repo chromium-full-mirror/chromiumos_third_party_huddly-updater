@@ -40,8 +40,17 @@ enum class BootMode : uint8_t {
   UNKNOWN = 0x10,
 };
 
+enum class StreamMode : uint16_t {
+  SINGLE = 0x0000,
+  DUAL = 0x0001,
+  TRIPLE = 0x0002,
+  WRITE_ENABLE = 0x8eb0,
+};
+
 uint16_t BootModeToProductId(BootMode mode);
 std::string BootModeStr(BootMode boot_mode);
+
+std::string StreamModeToStr(StreamMode stream_mode);
 
 class MinicamDevice : public UsbDevice {
  public:
@@ -68,6 +77,9 @@ class MinicamDevice : public UsbDevice {
 
   // Works in App mode only.
   bool GetVersion(std::string* app_ver, std::string* bootloader_ver);
+
+  bool GetStreamMode(StreamMode* stream_mode) const;
+  bool SetStreamMode(StreamMode stream_mode, std::string* err_msg) const;
 
  private:
   MinicamDevice(const MinicamDevice&) = delete;
