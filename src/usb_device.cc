@@ -222,7 +222,11 @@ std::string UsbDevice::ErrCodeToErrMsg(int err_code) const {
 libusb_context* UsbDevice::GetContext(std::string* err_msg) {
   libusb_context* ctx;
   if (libusb_init(&ctx) == 0) {  // success
+#if defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000106)
+    libusb_set_option(ctx, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_INFO);
+#else
     libusb_set_debug(ctx, LIBUSB_LOG_LEVEL_INFO);
+#endif
     return ctx;
   }
 
