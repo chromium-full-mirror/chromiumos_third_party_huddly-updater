@@ -226,7 +226,7 @@ void ShowInfo(const CmdlineFlags& cmd_flags) {
 }
 
 bool ConfigStreamMode() {
-  const huddly::StreamMode kMode = huddly::StreamMode::TRIPLE;
+  const huddly::StreamMode kMode = huddly::StreamMode::DUAL;
   huddly::MinicamDevice minidev(huddly::kVendorId, huddly::kProductIdApp);
   std::string err_msg;
   if (!minidev.Setup(&err_msg)) {
