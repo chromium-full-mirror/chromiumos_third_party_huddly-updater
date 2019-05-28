@@ -20,12 +20,8 @@ CXX_BINARY(huddly-updater): \
 	src/huddly_go/tools.o \
 	src/huddly_go/usb_device.o
 
-CXX_BINARY(huddly-manifest): \
-	src/huddly_go/manifest.o \
-	src/huddly_go/manifest_main.o
-
-all: CXX_BINARY(huddly-updater) CXX_BINARY(huddly-manifest)
-clean: CLEAN(CXX_BINARY(huddly-updater)) CLEAN(CXX_BINARY(huddly-manifest))
+all: CXX_BINARY(huddly-updater)
+clean: CLEAN(CXX_BINARY(huddly-updater))
 
 UNITTEST_LIBS := $(shell gtest-config --libs)
 
