@@ -19,16 +19,17 @@ namespace huddly {
 // completes it job.
 class Flasher {
  public:
-  Flasher(const Firmware& firmware, bool forceful_upgrade, bool dry_run);
-  ~Flasher();
+   Flasher(const Firmware &firmware, bool forceful_upgrade, bool dry_run,
+           std::string serial_number = "");
+   ~Flasher();
 
-  // Returns true if firmware package is ready, and if it succeeds to query
-  // / store the firmware versions of firmware package and the peripheral, and
-  // to determine the upgrade eligibility. Returns false otherwise.
-  bool Init(std::string* err_msg);
+   // Returns true if firmware package is ready, and if it succeeds to query
+   // / store the firmware versions of firmware package and the peripheral, and
+   // to determine the upgrade eligibility. Returns false otherwise.
+   bool Init(std::string *err_msg, const std::string &usb_path = "");
 
-  bool IsEligibleForUpgrade() const {
-    return is_eligible_to_upgrade_app_ || is_eligible_to_upgrade_boot_;
+   bool IsEligibleForUpgrade() const {
+     return is_eligible_to_upgrade_app_ || is_eligible_to_upgrade_boot_;
   }
 
   // Prints if bootloader and app need upgrades, together with current versions
@@ -50,7 +51,8 @@ class Flasher {
 
   // Updates pl_app_ver_, pl_bootloader_ver_, pl_hw_rev_ with information
   // from the attached Huddly camera device.
-  bool StorePeripheralInfo(std::string* err_msg);
+  bool StorePeripheralInfo(std::string *err_msg,
+                           const std::string &usb_path = "");
 
   // TODO(porce): make pointers / references protected during active flash op.
   const Firmware& firmware_;

@@ -54,32 +54,31 @@ std::string StreamModeToStr(StreamMode stream_mode);
 
 class MinicamDevice : public UsbDevice {
  public:
-  MinicamDevice(uint16_t vendor_id, uint16_t product_id);
-  ~MinicamDevice();
+   MinicamDevice(uint16_t vendor_id, uint16_t product_id,
+                 std::string usb_path = "", std::string usb_serial = "");
+   ~MinicamDevice();
 
-  bool CheckIfExists();
-  bool RebootInMode(BootMode boot_mode, std::string* err_msg);
-  bool Reboot(std::string* err_msg);
-  bool WriteImage(int data_len,
-                  uint8_t* data,
-                  std::string* err_msg,
-                  bool dry_run = false) const;
+   bool CheckIfExists();
+   bool RebootInMode(BootMode boot_mode, std::string *err_msg);
+   bool Reboot(std::string *err_msg);
+   bool WriteImage(int data_len, uint8_t *data, std::string *err_msg,
+                   bool dry_run = false) const;
 
-  // Show hardware revision and the firmware versions of bootloader and app
-  // firmware.
-  void ShowInfo();
+   // Show hardware revision and the firmware versions of bootloader and app
+   // firmware.
+   void ShowInfo();
 
-  // Works in any mode.
-  bool GetHwRevision(std::string* hw_rev_str, std::string* err_msg) const;
+   // Works in any mode.
+   bool GetHwRevision(std::string *hw_rev_str, std::string *err_msg) const;
 
-  // Works in Bootloader mode.
-  std::string QueryFirmwareVersion() const;
+   // Works in Bootloader mode.
+   std::string QueryFirmwareVersion() const;
 
-  // Works in App mode only.
-  bool GetVersion(std::string* app_ver, std::string* bootloader_ver);
+   // Works in App mode only.
+   bool GetVersion(std::string *app_ver, std::string *bootloader_ver);
 
-  bool GetStreamMode(StreamMode* stream_mode) const;
-  bool SetStreamMode(StreamMode stream_mode, std::string* err_msg) const;
+   bool GetStreamMode(StreamMode *stream_mode) const;
+   bool SetStreamMode(StreamMode stream_mode, std::string *err_msg) const;
 
  private:
   MinicamDevice(const MinicamDevice&) = delete;

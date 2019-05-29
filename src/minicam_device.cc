@@ -64,8 +64,9 @@ std::string StreamModeToStr(StreamMode stream_mode) {
   }
 }
 
-MinicamDevice::MinicamDevice(uint16_t vendor_id, uint16_t product_id)
-    : UsbDevice(vendor_id, product_id) {}
+MinicamDevice::MinicamDevice(uint16_t vendor_id, uint16_t product_id,
+                             std::string usb_path, std::string usb_serial)
+    : UsbDevice(vendor_id, product_id, usb_path, usb_serial) {}
 
 MinicamDevice::~MinicamDevice() {}
 

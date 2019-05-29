@@ -23,13 +23,13 @@ std::string BoolToYesNo(bool test) {
 
 }  // namespace
 
-Flasher::Flasher(const Firmware& firmware, bool forceful_upgrade, bool dry_run)
+Flasher::Flasher(const Firmware &firmware, bool forceful_upgrade, bool dry_run,
+                 std::string serial_number)
     : firmware_(firmware),
-      minidev_(new MinicamDevice(kVendorId, kProductIdBootloader)),
-      forceful_upgrade_(forceful_upgrade),
-      dry_run_(dry_run),
-      is_eligible_to_upgrade_app_(false),
-      is_eligible_to_upgrade_boot_(false) {}
+      minidev_(new MinicamDevice(kVendorId, kProductIdBootloader, "",
+                                 serial_number)),
+      forceful_upgrade_(forceful_upgrade), dry_run_(dry_run),
+      is_eligible_to_upgrade_app_(false), is_eligible_to_upgrade_boot_(false) {}
 
 Flasher::~Flasher() {
   std::string err_msg;
@@ -39,7 +39,7 @@ Flasher::~Flasher() {
   }
 }
 
-bool Flasher::Init(std::string* err_msg) {
+bool Flasher::Init(std::string *err_msg, const std::string &usb_path) {
   // Prepare the firmware package/images.
   if (!firmware_.IsReady(err_msg)) {
     *err_msg += ".. Firmware is not ready";
@@ -53,7 +53,8 @@ bool Flasher::Init(std::string* err_msg) {
   }
 
   // Object of huddly camera in App mode.
-  MinicamDevice minidev_app(kVendorId, kProductIdApp);
+  MinicamDevice minidev_app(kVendorId, kProductIdApp, usb_path,
+                            minidev_->GetSerialNumber());
   if (!minidev_app.CheckIfExists()) {
     *err_msg += ".. camera not detected: ";
     return false;
@@ -62,7 +63,7 @@ bool Flasher::Init(std::string* err_msg) {
   LOG(INFO) << ".. camera detected: " << minidev_app.GetId();
 
   // Invoke while in App mode.
-  if (!StorePeripheralInfo(err_msg)) {
+  if (!StorePeripheralInfo(err_msg, usb_path)) {
     *err_msg += ".. failed to store peripheral info";
     return false;
   }
@@ -170,10 +171,12 @@ void Flasher::StoreFirmwareInfo() {
   firmware_.ParseManifestJSON(&fw_app_ver_, &fw_bootloader_ver_, &fw_hw_rev_);
 }
 
-bool Flasher::StorePeripheralInfo(std::string* err_msg) {
+bool Flasher::StorePeripheralInfo(std::string *err_msg,
+                                  const std::string &usb_path) {
   // This special routine is a workaround:
   // The App version can be queries only in the App mode.
-  MinicamDevice minidev_app(kVendorId, kProductIdApp);
+  MinicamDevice minidev_app(kVendorId, kProductIdApp, usb_path,
+                            minidev_->GetSerialNumber());
 
   if (!minidev_app.Setup(err_msg)) {
     *err_msg += ".. failed to setup minidev: ";
