@@ -14,7 +14,7 @@
 
 namespace {
 
-const char kManifestJsonFile[] = "./src/example/manifest.json";
+const char kManifestJsonFile[] = "./src/huddly_go/example/manifest.json";
 
 class ManifestTest : public ::testing::Test {
  protected:
