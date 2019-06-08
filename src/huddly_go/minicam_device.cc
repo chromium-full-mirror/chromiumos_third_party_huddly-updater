@@ -11,6 +11,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <vector>
 
 #include "stdint.h"
 
@@ -114,6 +115,67 @@ bool MinicamDevice::Reboot(std::string* err_msg) {
   // No return value check. The device is just lost because of the reboot.
   // It is normal to have a return value of false.
   Teardown(err_msg);
+  return true;
+}
+
+bool MinicamDevice::GetForceHighSpeedMode(bool *force_high_speed,
+                                          std::string *err_msg) const {
+  // TODO(crbug.com/968383): Reimplement using MessagePack to encode/decode
+
+  // The encoded key, value pair to search for
+  const uint8_t kForceHighSpeedEntry[] = {0xad, 0x66, 0x6f, 0x72, 0x63,
+                                          0x65, 0x2d, 0x68, 0x73, 0x2d,
+                                          0x6f, 0x6e, 0x6c, 0x79, 0xc3};
+  uint16_t data_len = 0;
+  std::vector<uint8_t> data;
+  *force_high_speed = false;
+
+  // Query the size in bytes of the Product Info Map
+  if (!VendorRead(VendorRequest::PRODUCT_INFO,
+                  static_cast<uint32_t>(sizeof(data_len)),
+                  reinterpret_cast<uint8_t *>(&data_len), err_msg)) {
+    *err_msg += ".. failed in querying map length";
+    return false;
+  }
+
+  if (data_len <= 0) {
+    *err_msg += ".. invalid map length returned";
+    return false;
+  }
+
+  // Query the entire Product Info Map
+  data.resize(data_len);
+  if (!VendorRead(VendorRequest::PRODUCT_INFO, static_cast<uint32_t>(data_len),
+                  data.data(), err_msg)) {
+    *err_msg += ".. failed to query product information";
+    return false;
+  }
+
+  *force_high_speed =
+      (std::search(std::begin(data), std::end(data),
+                   std::begin(kForceHighSpeedEntry),
+                   std::end(kForceHighSpeedEntry)) != std::end(data));
+  return true;
+}
+
+bool MinicamDevice::SetForceHighSpeedMode(const bool force_high_speed,
+                                          std::string *err_msg) const {
+  // TODO(crbug.com/968383): Reimplement using MessagePack to encode property
+  // Encoded 'force-hs-only' using https://kawanet.github.io/msgpack-lite/
+  uint8_t property[] = {0x81, 0xad, 0x66, 0x6f, 0x72, 0x63, 0x65, 0x2d,
+                        0x68, 0x73, 0x2d, 0x6f, 0x6e, 0x6c, 0x79, 0x00};
+
+  // We use 0xc0 instead of 0xc2 to clear the entry. This is in an attempt to
+  // keep the dataset small
+  uint8_t map_value = force_high_speed ? 0xc3 : 0xc0;
+  property[sizeof(property) - 1] = map_value;
+
+  if (!VendorWrite(VendorRequest::PRODUCT_INFO, sizeof(property), property,
+                   err_msg)) {
+    *err_msg += ".. failed to set usb mode";
+    return false;
+  }
+
   return true;
 }
 
@@ -355,7 +417,8 @@ bool MinicamDevice::SetStreamMode(StreamMode stream_mode,
 bool MinicamDevice::GetBootMode(BootMode* boot_mode,
                                 std::string* err_msg) const {
   uint8_t data;
-
+  // TODO(crbug.com/968383): This implementation is likely incorrect and
+  // should be rewritten using MessagePack or using a different request
   if (!VendorRead(VendorRequest::PRODUCT_INFO,
                   static_cast<uint32_t>(sizeof(data)), &data, err_msg)) {
     *err_msg += ".. failed in querying boot mode";
