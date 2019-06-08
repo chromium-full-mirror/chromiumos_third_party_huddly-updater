@@ -81,6 +81,11 @@ class MinicamDevice : public UsbDevice {
   bool GetStreamMode(StreamMode* stream_mode) const;
   bool SetStreamMode(StreamMode stream_mode, std::string* err_msg) const;
 
+   bool GetForceHighSpeedMode(bool *force_high_speed,
+                              std::string *err_msg) const;
+   bool SetForceHighSpeedMode(const bool force_high_speed,
+                              std::string *err_msg) const;
+
  private:
   MinicamDevice(const MinicamDevice&) = delete;
   MinicamDevice& operator=(const MinicamDevice&) = delete;

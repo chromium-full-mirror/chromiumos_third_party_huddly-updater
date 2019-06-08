@@ -42,9 +42,8 @@ bool SwitchMode(huddly::BootMode from,
 // the Huddly peripheral in use.
 void ShowInfo(const CmdlineFlags& cmd_flags);
 
-// Configures the number of streams sent
-// from Huddly camera to the desired value.
-bool ConfigStreamMode();
+// Sets additional configuration properties for the Huddly Go Camera.
+bool ConfigCamera();
 
 // Show command line argument options.
 void ShowUsage(const char* program_name);
@@ -131,9 +130,9 @@ int main(int argc, char* argv[]) {
     LOG(INFO) << flasher.GetUpgradeEligibilityMessage();
     if (!flasher.IsEligibleForUpgrade()) {
 
-      // If configuring stream mode fails, or is not necessary, display message
-      // and quit.
-      if(!ConfigStreamMode())
+      // If configuring camera properties fails, or is not necessary, display
+      // message and quit.
+      if (!ConfigCamera())
         LOG(INFO) << ".. Exiting huddly-updater.";
 
       return EXIT_SUCCESS;
@@ -225,8 +224,63 @@ void ShowInfo(const CmdlineFlags& cmd_flags) {
   minidev.ShowInfo();
 }
 
-bool ConfigStreamMode() {
+// Configures the number of streams sent from Huddly camera.
+bool ConfigStreamMode(const huddly::MinicamDevice &minidev) {
   const huddly::StreamMode kMode = huddly::StreamMode::DUAL;
+  std::string err_msg;
+
+  huddly::StreamMode current_mode;
+  if (!minidev.GetStreamMode(&current_mode)) {
+    LOG(ERROR) << "Failed to get stream mode.";
+    return false;
+  }
+
+  if (current_mode == kMode) {
+    LOG(INFO) << ".. Already in " << huddly::StreamModeToStr(kMode) << " mode.";
+    return false;
+  }
+
+  if (!minidev.SetStreamMode(kMode, &err_msg)) {
+    LOG(ERROR) << "Failed to set stream mode: " << err_msg;
+    return false;
+  }
+
+  LOG(INFO) << "Changed stream mode from "
+            << huddly::StreamModeToStr(current_mode) << " to "
+            << huddly::StreamModeToStr(kMode) << ". Reboot needed.";
+  return true;
+}
+
+// Configures the property to force the Huddly Go Camera into High Speed Mode.
+bool ConfigHighSpeedMode(const huddly::MinicamDevice &minidev) {
+  const bool kForceHighSpeedMode = false;
+  std::string err_msg;
+
+  bool force_high_speed;
+  if (!minidev.GetForceHighSpeedMode(&force_high_speed, &err_msg)) {
+    LOG(ERROR) << "Failed to query property: force-hs-only. " << err_msg;
+    return false;
+  }
+
+  if (force_high_speed == kForceHighSpeedMode) {
+    LOG(INFO) << ".. Already in "
+              << (force_high_speed ? "HighSpeed" : "Default") << " USB mode.";
+    return false;
+  }
+
+  if (!minidev.SetForceHighSpeedMode(kForceHighSpeedMode, &err_msg)) {
+    LOG(ERROR) << "Failed to set property: force-hs-only. " << err_msg;
+    return false;
+  }
+
+  LOG(INFO) << "Changed usb mode from "
+            << (force_high_speed ? "HighSpeed" : "Default") << " to "
+            << (kForceHighSpeedMode ? "HighSpeed" : "Default")
+            << ". Reboot needed";
+  return true;
+}
+
+bool ConfigCamera() {
   huddly::MinicamDevice minidev(huddly::kVendorId, huddly::kProductIdApp);
   std::string err_msg;
   if (!minidev.Setup(&err_msg)) {
@@ -234,30 +288,17 @@ bool ConfigStreamMode() {
     return false;
   }
 
-  huddly::StreamMode current_mode;
-  if (!minidev.GetStreamMode(&current_mode)) {
-    minidev.Teardown(&err_msg);
-    LOG(ERROR) << "Failed to get stream mode.";
-    return false;
+  bool stream_reboot = ConfigStreamMode(minidev);
+  bool usb_reboot = ConfigHighSpeedMode(minidev);
+
+  if (stream_reboot || usb_reboot) {
+    LOG(INFO) << ".. Rebooting device.";
+    minidev.Reboot(&err_msg);
+    return true;
   }
 
-  if (current_mode == kMode) {
-    minidev.Teardown(&err_msg);
-    LOG(INFO) << ".. Already in " << huddly::StreamModeToStr(kMode) << " mode.";
-    return false;
-  }
-
-  if (!minidev.SetStreamMode(kMode, &err_msg)) {
-    minidev.Teardown(&err_msg);
-    LOG(ERROR) << "failed to set stream mode " << err_msg;
-    return false;
-  }
-
-  LOG(INFO) << "Changed stream mode from "
-            << huddly::StreamModeToStr(current_mode) << " to "
-            << huddly::StreamModeToStr(kMode) << ". Rebooting.";
-  minidev.Reboot(&err_msg);
-  return true;
+  minidev.Teardown(&err_msg);
+  return false;
 }
 
 void ShowUsage(const char* program_name) {
