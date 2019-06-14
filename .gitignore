@@ -3,6 +3,13 @@
 *.o.depends
 *.pic.*
 *.pie.*
+*.swp
 
-# ignore executable binary
-/huddly-updater
+# ignore executable binaries
+huddly-updater
+huddly-manifest
+manifest-unittest
+messagepack-unittest
+
+# ignore unittest output files
+*unittest.*.test
