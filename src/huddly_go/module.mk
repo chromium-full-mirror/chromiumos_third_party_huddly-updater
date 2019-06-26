@@ -23,7 +23,7 @@ CXX_BINARY(huddly-updater): \
 all: CXX_BINARY(huddly-updater)
 clean: CLEAN(CXX_BINARY(huddly-updater))
 
-UNITTEST_LIBS := $(shell gtest-config --libs)
+UNITTEST_LIBS := -lgtest -pthread -lpthread
 
 CXX_BINARY(manifest-unittest): LDLIBS += $(UNITTEST_LIBS)
 CXX_BINARY(manifest-unittest): \
