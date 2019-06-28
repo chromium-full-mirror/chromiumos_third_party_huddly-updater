@@ -9,6 +9,7 @@
 huddly-updater
 huddly-manifest
 manifest-unittest
+huddly-hpk-unittest
 messagepack-unittest
 
 # ignore unittest output files
