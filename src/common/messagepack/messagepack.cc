@@ -229,6 +229,13 @@ bool Map::FindKeyValue(const std::string& key,
   return true;
 }
 
+std::string Map::ToString() const {
+  msgpack_object obj;
+  obj.type = MSGPACK_OBJECT_MAP;
+  obj.via.map = map_;
+  return Object(obj).ToString();
+}
+
 Array::Array() {
   array_.size = 0;
   array_.ptr = nullptr;
@@ -241,6 +248,13 @@ bool Array::GetValueObjects(std::vector<Object>* out) const {
     out->push_back(Object(array_.ptr[i]));
   }
   return true;
+}
+
+std::string Array::ToString() const {
+  msgpack_object obj;
+  obj.type = MSGPACK_OBJECT_ARRAY;
+  obj.via.array = array_;
+  return Object(obj).ToString();
 }
 
 Unpacker::Unpacker(const std::vector<uint8_t>& packed) : packed_(packed) {

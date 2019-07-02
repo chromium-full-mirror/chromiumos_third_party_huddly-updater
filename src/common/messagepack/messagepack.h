@@ -95,7 +95,9 @@ public:
     return true;
   }
 
-private:
+  std::string ToString() const;
+
+ private:
   bool FindKeyValue(const std::string& key, msgpack_object_kv* key_value) const;
   msgpack_object_map map_;
 };
@@ -129,7 +131,9 @@ public:
     return true;
   }
 
-private:
+  std::string ToString() const;
+
+ private:
   msgpack_object_array array_;
 };
 

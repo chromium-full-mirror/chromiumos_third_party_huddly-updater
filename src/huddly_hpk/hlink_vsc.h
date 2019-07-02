@@ -16,17 +16,17 @@
 namespace huddly {
 
 class HLinkVsc {
-public:
+ public:
   static std::unique_ptr<HLinkVsc> Create(
       std::unique_ptr<UsbDevice> usb_device);
   ~HLinkVsc();
   bool Connect();
   bool Send(const HLinkBuffer& hlbuf);
-  bool Send(std::string msg_name, const uint8_t* data, size_t sz);
+  bool Send(std::string msg_name, const uint8_t* data, int sz);
   bool Receive(HLinkBuffer* buffer);
   bool SendReboot(bool wait_for_detach);
 
-private:
+ private:
   explicit HLinkVsc(std::unique_ptr<UsbDevice> usb_device);
   HLinkVsc() {}
 

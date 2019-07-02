@@ -4,13 +4,12 @@
 *.pic.*
 *.pie.*
 *.swp
+*.tmp
 
 # ignore executable binaries
 huddly-updater
-huddly-manifest
-manifest-unittest
-huddly-hpk-unittest
-messagepack-unittest
+huddly-hpk-updater
+*-unittest
 
 # ignore unittest output files
 *unittest.*.test

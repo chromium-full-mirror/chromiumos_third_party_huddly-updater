@@ -79,7 +79,7 @@ bool HLinkVsc::Send(const HLinkBuffer& hlbuf) {
   return true;
 }
 
-bool HLinkVsc::Send(std::string msg_name, const uint8_t* data, size_t sz) {
+bool HLinkVsc::Send(std::string msg_name, const uint8_t* data, int sz) {
   HLinkBuffer hlbuf(msg_name.c_str(), data, sz);
   return Send(hlbuf);
 }

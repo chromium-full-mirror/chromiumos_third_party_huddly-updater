@@ -11,6 +11,21 @@ LDLIBS += $(PC_LIBS)
 
 CPPFLAGS += $(PC_CFLAGS)
 
+CXX_BINARY(huddly-hpk-updater): \
+	src/common/messagepack/messagepack.o \
+	src/huddly_hpk/hcp.o \
+	src/huddly_hpk/hlink_buffer.o \
+	src/huddly_hpk/hlink_vsc.o \
+	src/huddly_hpk/hpk_file.o \
+	src/huddly_hpk/hpk_updater.o \
+	src/huddly_hpk/main.o \
+	src/huddly_hpk/message_bus.o \
+	src/huddly_hpk/usb.o \
+	src/huddly_hpk/utils.o
+
+all: CXX_BINARY(huddly-hpk-updater)
+clean: CLEAN(CXX_BINARY(huddly-hpk-updater))
+
 UNITTEST_LIBS := $(shell gtest-config --libs)
 
 CXX_BINARY(huddly-hpk-unittest): LDLIBS += $(UNITTEST_LIBS)
