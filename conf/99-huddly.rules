@@ -17,3 +17,10 @@ ACTION=="add", SUBSYSTEM=="usb", \
 ENV{ID_VENDOR_ID}=="2bd9", ENV{ID_MODEL_ID}=="0011", \
 MODE="0664", OWNER="cfm-firmware-updaters", GROUP="cfm-firmware-updaters", \
 RUN+="/sbin/minijail0 -u cfm-firmware-updaters -g cfm-firmware-updaters -e -i -l -N -v -r -n -- /usr/sbin/huddly-updater --prep"
+
+
+ACTION=="add", SUBSYSTEM=="usb", \
+ENV{ID_VENDOR_ID}=="2bd9", ENV{ID_MODEL_ID}=="0021", \
+MODE="0664", OWNER="cfm-firmware-updaters", GROUP="cfm-firmware-updaters", \
+RUN+="/sbin/minijail0 -u cfm-firmware-updaters -g cfm-firmware-updaters -e -i -l -N -v -r -n -- /usr/sbin/huddly-hpk-updater --udev_mode"
+
