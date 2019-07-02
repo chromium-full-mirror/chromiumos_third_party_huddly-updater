@@ -13,13 +13,16 @@
 namespace huddly {
 namespace hcp {
 
-bool Write(HLinkVsc* hlink, const std::string& filename,
+bool Write(HLinkVsc* hlink,
+           const std::string& filename,
            const std::string& data) {
   return Write(hlink, filename, reinterpret_cast<const uint8_t*>(data.data()),
                data.size());
 }
 
-bool Write(HLinkVsc* hlink, const std::string& filename, const uint8_t* data,
+bool Write(HLinkVsc* hlink,
+           const std::string& filename,
+           const uint8_t* data,
            size_t sz) {
   msgpack_sbuffer sbuf;
   msgpack_sbuffer_init(&sbuf);

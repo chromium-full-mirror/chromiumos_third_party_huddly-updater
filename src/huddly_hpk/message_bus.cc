@@ -30,7 +30,9 @@ std::unique_ptr<ScopedSubscribe> ScopedSubscribe::Create(
   return instance;
 }
 
-ScopedSubscribe::~ScopedSubscribe() { Unsubscribe(hlink_, subscription_); }
+ScopedSubscribe::~ScopedSubscribe() {
+  Unsubscribe(hlink_, subscription_);
+}
 
 ScopedSubscribe::ScopedSubscribe(HLinkVsc* hlink,
                                  const std::string& subscription)

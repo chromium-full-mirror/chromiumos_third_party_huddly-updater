@@ -25,18 +25,20 @@ struct __attribute__((packed)) HLinkHeader {
 static_assert(sizeof(HLinkHeader) == 16, "HLinkHeader should be 16 bytes");
 
 class HLinkBuffer {
-public:
+ public:
   HLinkBuffer() {}
-  HLinkBuffer(const std::string& msg_name, const uint8_t* payload,
+  HLinkBuffer(const std::string& msg_name,
+              const uint8_t* payload,
               const int payload_size);
   static bool FromRawBuffer(const std::vector<uint8_t>& raw_buffer,
-                            HLinkBuffer* hlink_buffer, std::string* err_msg);
+                            HLinkBuffer* hlink_buffer,
+                            std::string* err_msg);
 
   std::string GetMessageName() const;
   const std::vector<uint8_t>& GetPayload() const;
   std::vector<uint8_t> CreatePacket() const;
 
-private:
+ private:
   HLinkHeader header_;
   std::string msg_name_;
   std::vector<uint8_t> payload_;

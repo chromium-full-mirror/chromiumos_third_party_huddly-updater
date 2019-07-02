@@ -65,7 +65,9 @@ UsbDevice::GetActiveConfigDescriptor() {
       config, libusb_free_config_descriptor);
 }
 
-uint16_t UsbDevice::GetVendorId() const { return device_descriptor_.idVendor; }
+uint16_t UsbDevice::GetVendorId() const {
+  return device_descriptor_.idVendor;
+}
 
 uint16_t UsbDevice::GetProductId() const {
   return device_descriptor_.idProduct;
@@ -158,11 +160,17 @@ std::unique_ptr<UsbDeviceList> UsbDeviceList::Create(libusb_context* ctx) {
   return object;
 }
 
-UsbDeviceList::~UsbDeviceList() { libusb_free_device_list(devices_, 1); }
+UsbDeviceList::~UsbDeviceList() {
+  libusb_free_device_list(devices_, 1);
+}
 
-libusb_device** UsbDeviceList::begin() { return devices_; }
+libusb_device** UsbDeviceList::begin() {
+  return devices_;
+}
 
-libusb_device** UsbDeviceList::end() { return devices_ + count_; }
+libusb_device** UsbDeviceList::end() {
+  return devices_ + count_;
+}
 
 std::unique_ptr<Usb> Usb::Create() {
   auto object = base::WrapUnique(new Usb());
@@ -174,7 +182,9 @@ std::unique_ptr<Usb> Usb::Create() {
   return object;
 }
 
-Usb::~Usb() { libusb_exit(ctx_); }
+Usb::~Usb() {
+  libusb_exit(ctx_);
+}
 
 std::unique_ptr<UsbDevice> Usb::FindDevice(uint16_t vid, uint16_t pid) const {
   auto device_list = UsbDeviceList::Create(ctx_);
@@ -202,7 +212,8 @@ std::unique_ptr<UsbDevice> Usb::FindDevice(uint16_t vid, uint16_t pid) const {
   return nullptr;
 }
 
-std::unique_ptr<UsbDevice> Usb::WaitForDevice(uint16_t vid, uint16_t pid,
+std::unique_ptr<UsbDevice> Usb::WaitForDevice(uint16_t vid,
+                                              uint16_t pid,
                                               int timeout_ms) const {
   const auto start = base::TimeTicks::Now();
   while ((base::TimeTicks::Now() - start).InMilliseconds() < timeout_ms) {

@@ -12,9 +12,12 @@
 namespace huddly {
 namespace hcp {
 
-bool Write(HLinkVsc* hlink, const std::string& filename,
+bool Write(HLinkVsc* hlink,
+           const std::string& filename,
            const std::string& data);
-bool Write(HLinkVsc* hlink, const std::string& filename, const uint8_t* data,
+bool Write(HLinkVsc* hlink,
+           const std::string& filename,
+           const uint8_t* data,
            size_t sz);
 
 }  // namespace hcp

@@ -15,20 +15,20 @@ namespace huddly {
 class Usb;
 
 class UsbEndpoint {
-public:
+ public:
   UsbEndpoint() {}
   explicit UsbEndpoint(const libusb_endpoint_descriptor& descriptor);
 
   int address() const { return address_; }
   int max_size() const { return max_size_; }
 
-private:
+ private:
   int address_ = -1;
   int max_size_ = -1;
 };
 
 class UsbDevice {
-public:
+ public:
   explicit UsbDevice(const Usb* usb, libusb_device* dev);
   ~UsbDevice();
 
@@ -41,15 +41,17 @@ public:
   uint16_t GetProductId() const;
   bool ClaimInterface(uint8_t interface_number);
   bool ReleaseInterface(uint8_t interface_number);
-  bool BulkWrite(const UsbEndpoint& endpoint, const std::vector<uint8_t> data,
+  bool BulkWrite(const UsbEndpoint& endpoint,
+                 const std::vector<uint8_t> data,
                  const unsigned int timeout_ms);
-  bool BulkRead(const UsbEndpoint& endpoint, const unsigned int timeout_ms,
+  bool BulkRead(const UsbEndpoint& endpoint,
+                const unsigned int timeout_ms,
                 std::vector<uint8_t>* data);
   bool WaitForDetach(const unsigned int timeout_ms);
 
   const Usb* GetUsb() { return usb_; }
 
-private:
+ private:
   const Usb* usb_ = nullptr;
   libusb_device* dev_ = nullptr;
   libusb_device_descriptor device_descriptor_ = {};
@@ -59,7 +61,7 @@ private:
 };
 
 class UsbDeviceList {
-public:
+ public:
   static std::unique_ptr<UsbDeviceList> Create(libusb_context* ctx);
   ~UsbDeviceList();
 
@@ -67,7 +69,7 @@ public:
   libusb_device** begin();
   libusb_device** end();
 
-private:
+ private:
   UsbDeviceList() {}
 
   ssize_t count_;
@@ -77,17 +79,18 @@ private:
 };
 
 class Usb {
-public:
+ public:
   static std::unique_ptr<Usb> Create();
   ~Usb();
 
   std::unique_ptr<UsbDevice> FindDevice(uint16_t vid, uint16_t pid) const;
-  std::unique_ptr<UsbDevice> WaitForDevice(uint16_t vid, uint16_t pid,
+  std::unique_ptr<UsbDevice> WaitForDevice(uint16_t vid,
+                                           uint16_t pid,
                                            int timeout_ms) const;
   bool DeviceExists(libusb_device* device) const;
   bool WaitForDeviceDetach(libusb_device* device, int timeout_ms) const;
 
-private:
+ private:
   Usb() {}
   libusb_context* ctx_ = nullptr;
 

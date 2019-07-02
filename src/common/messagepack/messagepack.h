@@ -20,64 +20,88 @@ class Map;
 class Array;
 
 class Object {
-public:
+ public:
   Object();
   explicit Object(const msgpack_object& object) : object_(object) {}
 
   bool IsNil() const;
 
   // Is<T> returns true if the underlying type is exactly the same as T
-  template <typename T> bool Is() const { return false; }
-  template <> bool Is<bool>() const;
-  template <> bool Is<double>() const;
-  template <> bool Is<int64_t>() const;
-  template <> bool Is<uint64_t>() const;
-  template <> bool Is<std::string>() const;
-  template <> bool Is<Map>() const;
-  template <> bool Is<Array>() const;
+  template <typename T>
+  bool Is() const {
+    return false;
+  }
+  template <>
+  bool Is<bool>() const;
+  template <>
+  bool Is<double>() const;
+  template <>
+  bool Is<int64_t>() const;
+  template <>
+  bool Is<uint64_t>() const;
+  template <>
+  bool Is<std::string>() const;
+  template <>
+  bool Is<Map>() const;
+  template <>
+  bool Is<Array>() const;
 
   // Get<T> returns the object value as T, if the underlying type is T.
-  template <typename T> bool Get(T* out) const {
+  template <typename T>
+  bool Get(T* out) const {
     // If no fully specialized template function is defined, the function
     // returns false.
     return false;
   }
-  template <> bool Get<bool>(bool* out) const;
-  template <> bool Get<double>(double* out) const;
-  template <> bool Get<int64_t>(int64_t* out) const;
-  template <> bool Get<uint64_t>(uint64_t* out) const;
-  template <> bool Get<std::string>(std::string* out) const;
-  template <> bool Get<Map>(Map* out) const;
-  template <> bool Get<Array>(Array* out) const;
+  template <>
+  bool Get<bool>(bool* out) const;
+  template <>
+  bool Get<double>(double* out) const;
+  template <>
+  bool Get<int64_t>(int64_t* out) const;
+  template <>
+  bool Get<uint64_t>(uint64_t* out) const;
+  template <>
+  bool Get<std::string>(std::string* out) const;
+  template <>
+  bool Get<Map>(Map* out) const;
+  template <>
+  bool Get<Array>(Array* out) const;
 
   // GetAs<T> attempts to return the object value converted to T. Reasonable
   // numeric casts are performed automatically. Conversions to string is
   // supported, but not from string to any other types. Boolean values are never
   // converted.
-  template <typename T> bool GetAs(T* out) const {
+  template <typename T>
+  bool GetAs(T* out) const {
     // If no fully specialized template is defined, us the Get<T> function.
     return Get<T>(out);
   }
-  template <> bool GetAs<int64_t>(int64_t* out) const;
-  template <> bool GetAs<uint64_t>(uint64_t* out) const;
-  template <> bool GetAs<double>(double* out) const;
-  template <> bool GetAs<std::string>(std::string* out) const;
+  template <>
+  bool GetAs<int64_t>(int64_t* out) const;
+  template <>
+  bool GetAs<uint64_t>(uint64_t* out) const;
+  template <>
+  bool GetAs<double>(double* out) const;
+  template <>
+  bool GetAs<std::string>(std::string* out) const;
 
   // Convenience function
   std::string ToString() const;
 
-private:
+ private:
   msgpack_object object_;
 };
 
 class Map {
-public:
+ public:
   Map();
   explicit Map(const msgpack_object_map& map) : map_(map) {}
   int Size() const;
   bool GetValueObject(const std::string& key, Object* out) const;
 
-  template <typename T> bool GetValue(const std::string& key, T* out) const {
+  template <typename T>
+  bool GetValue(const std::string& key, T* out) const {
     Object value_object;
     if (!GetValueObject(key, &value_object))
       return false;
@@ -86,7 +110,8 @@ public:
     return true;
   }
 
-  template <typename T> bool GetValueAs(const std::string& key, T* out) const {
+  template <typename T>
+  bool GetValueAs(const std::string& key, T* out) const {
     Object value_object;
     if (!GetValueObject(key, &value_object))
       return false;
@@ -103,13 +128,14 @@ public:
 };
 
 class Array {
-public:
+ public:
   Array();
   explicit Array(const msgpack_object_array& array) : array_(array) {}
   int Size() const;
   bool GetValueObjects(std::vector<Object>* out) const;
 
-  template <typename T> bool GetValues(std::vector<T>* out) const {
+  template <typename T>
+  bool GetValues(std::vector<T>* out) const {
     for (auto i = 0u; i < Size(); i++) {
       T value;
       Object object(array_.ptr[i]);
@@ -120,7 +146,8 @@ public:
     return true;
   }
 
-  template <typename T> bool GetValuesAs(std::vector<T>* out) const {
+  template <typename T>
+  bool GetValuesAs(std::vector<T>* out) const {
     for (auto i = 0u; i < Size(); i++) {
       T value;
       Object object(array_.ptr[i]);
@@ -143,15 +170,16 @@ public:
 // throughout the lifetime of all non-value variables that originates from the
 // Unpacker.
 class Unpacker {
-public:
+ public:
   static std::unique_ptr<Unpacker> Create(const std::vector<uint8_t>& packed);
   Object GetRootObject() const;
-  template <typename T> bool GetRoot(T* out) const {
+  template <typename T>
+  bool GetRoot(T* out) const {
     return GetRootObject().Get<T>(out);
   }
   ~Unpacker();
 
-private:
+ private:
   explicit Unpacker(const std::vector<uint8_t>& packed);
 
   msgpack_unpacked unpacked_;

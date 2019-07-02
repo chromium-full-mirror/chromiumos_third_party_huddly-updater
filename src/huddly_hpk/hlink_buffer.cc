@@ -6,7 +6,8 @@
 #include <cassert>
 
 namespace huddly {
-HLinkBuffer::HLinkBuffer(const std::string& msg_name, const uint8_t* payload,
+HLinkBuffer::HLinkBuffer(const std::string& msg_name,
+                         const uint8_t* payload,
                          const int payload_size)
     : msg_name_(msg_name), payload_(payload, payload + payload_size) {
   header_.req_id = 0;
@@ -38,9 +39,13 @@ bool HLinkBuffer::FromRawBuffer(const std::vector<uint8_t>& raw_buffer,
   return true;
 }
 
-std::string HLinkBuffer::GetMessageName() const { return msg_name_; }
+std::string HLinkBuffer::GetMessageName() const {
+  return msg_name_;
+}
 
-const std::vector<uint8_t>& HLinkBuffer::GetPayload() const { return payload_; }
+const std::vector<uint8_t>& HLinkBuffer::GetPayload() const {
+  return payload_;
+}
 
 std::vector<uint8_t> HLinkBuffer::CreatePacket() const {
   std::vector<uint8_t> data;

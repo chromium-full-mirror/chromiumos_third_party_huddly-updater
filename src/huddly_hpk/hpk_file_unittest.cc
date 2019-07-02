@@ -22,7 +22,7 @@ const std::vector<uint32_t> kExpectedFirmwareVersionNumeric_{1, 2, 18};
 const std::string kExpectedFirmwareVersionString_("HuddlyIQ-1.2.18-0");
 
 class HpkFileTest : public ::testing::Test {
-protected:
+ protected:
   void SetUp() override {}
   std::string error_msg;
 };

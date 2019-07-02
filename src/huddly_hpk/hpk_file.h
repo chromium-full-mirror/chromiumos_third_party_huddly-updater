@@ -13,7 +13,7 @@
 
 namespace huddly {
 class HpkFile {
-public:
+ public:
   static std::unique_ptr<HpkFile> Create(const base::FilePath& path,
                                          std::string* error_msg);
   static std::unique_ptr<HpkFile> Create(const std::string& file_contents,
@@ -25,7 +25,7 @@ public:
   bool GetFirmwareVersionString(std::string* version,
                                 std::string* error_msg) const;
 
-private:
+ private:
   HpkFile() {}
   bool Setup(const std::string& file_contents, std::string* error_msg);
   bool ExtractManifestData(std::string* error_msg);
