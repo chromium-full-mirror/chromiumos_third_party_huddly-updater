@@ -11,7 +11,7 @@ LDLIBS += $(PC_LIBS)
 
 CPPFLAGS += $(PC_CFLAGS)
 
-UNITTEST_LIBS := $(shell gtest-config --libs)
+UNITTEST_LIBS := -lgtest -pthread -lpthread
 
 CXX_BINARY(messagepack-unittest): LDLIBS += $(UNITTEST_LIBS)
 CXX_BINARY(messagepack-unittest): \
