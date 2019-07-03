@@ -99,7 +99,9 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
     }
 
     bool reboot_requested;
-    DoSingleUpdatePass(*hpk_file, &reboot_requested);
+    if (!DoSingleUpdatePass(*hpk_file, &reboot_requested)) {
+      return false;
+    }
 
     if (action == UpdateAction::kRunUpdate && !reboot_requested) {
       LOG(ERROR)
