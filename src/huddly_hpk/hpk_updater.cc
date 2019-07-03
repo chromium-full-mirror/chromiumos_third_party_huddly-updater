@@ -85,9 +85,10 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
     return false;
   }
 
+  UpdateAction action = UpdateAction::kUnknown;
   const auto kNumUpdatePasses = udev_mode ? 1 : 2;
   for (int update_pass = 1; update_pass <= kNumUpdatePasses; update_pass++) {
-    const auto action = DetermineUpdateAction(camera_info_, *hpk_file, force);
+    action = DetermineUpdateAction(camera_info_, *hpk_file, force);
 
     if (action == UpdateAction::kUnknown) {
       LOG(ERROR) << "Unable to determine update state";
@@ -132,7 +133,9 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
     }
   }
 
-  LOG(INFO) << "Update finished successfully";
+  if (action == UpdateAction::kRunVerification) {
+    LOG(INFO) << "Update finished successfully";
+  }
   return true;
 }
 
