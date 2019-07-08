@@ -26,7 +26,7 @@ CXX_BINARY(huddly-hpk-updater): \
 all: CXX_BINARY(huddly-hpk-updater)
 clean: CLEAN(CXX_BINARY(huddly-hpk-updater))
 
-UNITTEST_LIBS := $(shell gtest-config --libs)
+UNITTEST_LIBS := -lgtest -pthread -lpthread
 
 CXX_BINARY(huddly-hpk-unittest): LDLIBS += $(UNITTEST_LIBS)
 CXX_BINARY(huddly-hpk-unittest): \
