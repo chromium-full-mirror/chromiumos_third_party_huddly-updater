@@ -210,6 +210,10 @@ bool HpkUpdater::GetCameraInformation(CameraInformation* info) {
   }
 
   auto unpacker = huddly::messagepack::Unpacker::Create(product_info_msgpack);
+  if (!unpacker) {
+    LOG(ERROR) << "Unable to decode product info reply";
+    return false;
+  }
   huddly::messagepack::Map product_info;
   if (!unpacker->GetRoot<huddly::messagepack::Map>(&product_info)) {
     LOG(ERROR) << "Failed to get product info as map";
@@ -276,6 +280,10 @@ bool HpkUpdater::GetFirmwareVersion(std::string* version) {
   }
 
   auto unpacker = messagepack::Unpacker::Create(product_info_msgpack);
+  if (!unpacker) {
+    LOG(ERROR) << "Unable to decode product info reply";
+    return false;
+  }
   messagepack::Map product_info;
   if (!unpacker->GetRoot<messagepack::Map>(&product_info)) {
     LOG(ERROR) << "Failed to get product info as map";
@@ -297,6 +305,10 @@ class UpgradeStatusHandler {
   // object.
   bool operator()(std::vector<uint8_t> payload) {
     auto unpacker = messagepack::Unpacker::Create(payload);
+    if (!unpacker) {
+      LOG(ERROR) << "Unable to decode status message";
+      return false;
+    }
     messagepack::Map upgrader_status;
     if (!unpacker->GetRoot<messagepack::Map>(&upgrader_status)) {
       LOG(ERROR) << "Failed to get upgrader status as map.";

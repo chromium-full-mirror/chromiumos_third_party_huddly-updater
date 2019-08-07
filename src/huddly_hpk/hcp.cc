@@ -60,6 +60,10 @@ bool Write(HLinkVsc* hlink,
   }
 
   auto unpacker = messagepack::Unpacker::Create(hl_buffer.GetPayload());
+  if (!unpacker) {
+    LOG(ERROR) << "Failed to decode 'hcp/write_reply' message payload";
+    return false;
+  }
   messagepack::Map hcp_write_reply;
   if (!unpacker->GetRoot<messagepack::Map>(&hcp_write_reply)) {
     LOG(ERROR) << "Failed to get '" << kSubscription << "' as map";
