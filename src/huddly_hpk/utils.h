@@ -7,12 +7,15 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 namespace huddly {
 
 std::string Uint8ToHexString(uint8_t value);
 std::string Uint16ToHexString(uint16_t value);
 std::string UsbVidPidString(uint16_t vid, uint16_t pid);
+int VersionCompare(const std::vector<uint32_t>& v1,
+                   const std::vector<uint32_t>& v2);
 
 }  // namespace huddly
 

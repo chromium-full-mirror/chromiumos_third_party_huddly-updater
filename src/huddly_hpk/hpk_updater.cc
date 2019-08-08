@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <base/memory/ptr_util.h>
 #include <utility>
+#include <regex.h>
 
 #include "../common/messagepack/messagepack.h"
 #include "hcp.h"
@@ -85,6 +86,13 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
     return false;
   }
 
+  if (!HpkUpdateSupported()) {
+    LOG(ERROR) << "The current camera firmware version, '"
+               << camera_info_.firmware_version
+               << "' does not support hpk update.";
+    return false;
+  }
+
   UpdateAction action = UpdateAction::kUnknown;
   const auto kNumUpdatePasses = udev_mode ? 1 : 2;
   for (int update_pass = 1; update_pass <= kNumUpdatePasses; update_pass++) {
@@ -154,6 +162,50 @@ bool HpkUpdater::RebootAndReattach() {
 
   if (!Connect()) {
     LOG(ERROR) << "Connect failed";
+    return false;
+  }
+
+  return true;
+}
+
+// For Huddly IQ, the hpk-updater is not supported for firmware versions
+// before 1.2.0.
+bool HpkUpdater::HpkUpdateSupported() {
+  // This limitation is only valid for Huddly IQ. Make sure we are indeed
+  // attempting to update a Huddly IQ.
+  std::string& version_str = camera_info_.firmware_version;
+
+  const std::string kProductIdentifier("HuddlyIQ");
+  if (version_str.find(kProductIdentifier) == std::string::npos) {
+    return true;
+  }
+
+  const int kMaxGroups = 4;  // 3 digit groups + overall match
+  regmatch_t groups[kMaxGroups];
+  std::string regex_string =
+      R"(HuddlyIQ-([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+))";
+  regex_t regex;
+  if (regcomp(&regex, regex_string.c_str(), REG_EXTENDED)) {
+    LOG(ERROR) << "Failed to compile regex";
+    return true;  // It is better to assume hpk update supported in this case.
+                  // It will fail soon enough if it is not.
+  }
+
+  if (regexec(&regex, version_str.c_str(), kMaxGroups, groups, 0)) {
+    LOG(ERROR) << "Failed to execute regex";
+    return true;  // It is better to assume hpk update supported in this case.
+                  // It will fail soon enough if it is not.
+  }
+
+  std::vector<uint32_t> version;
+  for (auto i = 1; i < kMaxGroups; i++) {
+    int start = groups[i].rm_so;
+    int end = groups[i].rm_eo;
+    version.push_back(std::stoul(version_str.substr(start, end - start)));
+  }
+
+  const std::vector<uint32_t> kMinimumSupportedVersion{1, 2, 0};
+  if (VersionCompare(version, kMinimumSupportedVersion) < 0) {
     return false;
   }
 

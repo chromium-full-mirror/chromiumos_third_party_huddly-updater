@@ -29,6 +29,7 @@ class HpkUpdater {
   bool DoUpdate(base::FilePath hpk_file_path, bool force, bool udev_mode);
   bool Reboot(bool wait_for_detach);
   bool RebootAndReattach();
+  bool HpkUpdateSupported();
 
  private:
   HpkUpdater(uint16_t usb_vendor_id, uint16_t usb_product_id);

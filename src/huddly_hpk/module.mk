@@ -32,7 +32,9 @@ CXX_BINARY(huddly-hpk-unittest): LDLIBS += $(UNITTEST_LIBS)
 CXX_BINARY(huddly-hpk-unittest): \
 	src/huddly_hpk/hpk_file.o \
 	src/huddly_hpk/hpk_file_unittest.o \
-	src/huddly_go/testrunner.o
+	src/huddly_hpk/testrunner.o \
+	src/huddly_hpk/utils.o \
+	src/huddly_hpk/utils_unittest.o
 
 tests: TEST(CXX_BINARY(huddly-hpk-unittest))
 clean: CLEAN(CXX_BINARY(huddly-hpk-unittest))
