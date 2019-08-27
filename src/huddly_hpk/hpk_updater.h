@@ -19,6 +19,7 @@ struct CameraInformation {
   std::string firmware_version;
   std::string ram_boot_selector;
   std::string boot_decision;
+  std::string camera_mode;
 };
 
 class HpkUpdater {
@@ -37,6 +38,9 @@ class HpkUpdater {
   bool Connect();
   bool GetCameraInformation(CameraInformation* info);
   bool GetProductInfo(std::vector<uint8_t>* product_info_msgpack);
+  bool SetProductInfo(const std::vector<uint8_t>& product_info_msgpack);
+  bool SetCameraMode(const std::string& mode);
+  bool ConfigureCamera();
   bool GetFirmwareVersion(std::string* version);
   bool DoSingleUpdatePass(const HpkFile& hpk_file, bool* reboot_needed);
   // status_handler shall return false until finished, then true.

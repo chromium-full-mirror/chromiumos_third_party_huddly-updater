@@ -38,7 +38,12 @@ std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
   return instance;
 }
 
-enum class UpdateAction { kDone, kRunUpdate, kRunVerification, kUnknown };
+enum class UpdateAction {
+  kNoUpdateNeeded,
+  kRunUpdate,
+  kRunVerification,
+  kUnknown
+};
 
 static UpdateAction DetermineUpdateAction(const CameraInformation& camera_info,
                                           const HpkFile& hpk_file,
@@ -71,7 +76,7 @@ static UpdateAction DetermineUpdateAction(const CameraInformation& camera_info,
   }
 
   LOG(INFO) << "No upgrade or verification needed.";
-  return UpdateAction::kDone;
+  return UpdateAction::kNoUpdateNeeded;
 }
 
 bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
@@ -103,7 +108,11 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
       return false;
     }
 
-    if (action == UpdateAction::kDone) {
+    if (action == UpdateAction::kNoUpdateNeeded) {
+      if (!ConfigureCamera()) {
+        LOG(ERROR) << "Failed to configure camera";
+        return false;
+      }
       return true;
     }
 
@@ -143,6 +152,10 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
 
   if (action == UpdateAction::kRunVerification) {
     LOG(INFO) << "Update finished successfully";
+    if (!ConfigureCamera()) {
+      LOG(ERROR) << "Failed to configure camera";
+      return false;
+    }
   }
   return true;
 }
@@ -207,6 +220,27 @@ bool HpkUpdater::HpkUpdateSupported() {
   const std::vector<uint32_t> kMinimumSupportedVersion{1, 2, 0};
   if (VersionCompare(version, kMinimumSupportedVersion) < 0) {
     return false;
+  }
+
+  return true;
+}
+
+bool HpkUpdater::ConfigureCamera() {
+  const uint16_t kClownfishProductId = 0x0031;
+  if (usb_product_id_ == kClownfishProductId) {
+    const std::string kCameraModeDualStream("dual-stream");
+    if (camera_info_.camera_mode == kCameraModeDualStream) {
+      LOG(INFO) << "Camera already configured";
+      return true;
+    }
+
+    LOG(INFO) << "Setting dual stream mode";
+    if (!SetCameraMode(kCameraModeDualStream)) {
+      LOG(ERROR) << "Failed to set dual stream mode";
+      return false;
+    }
+
+    Reboot(false);
   }
 
   return true;
@@ -291,6 +325,8 @@ bool HpkUpdater::GetCameraInformation(CameraInformation* info) {
     return false;
   }
 
+  product_info.GetValueAs<std::string>("camera-mode", &info->camera_mode);
+
   return true;
 }
 
@@ -322,6 +358,69 @@ bool HpkUpdater::GetProductInfo(std::vector<uint8_t>* product_info_msgpack) {
   }
 
   *product_info_msgpack = buffer.GetPayload();
+  return true;
+}
+
+bool HpkUpdater::SetProductInfo(
+    const std::vector<uint8_t>& product_info_msgpack) {
+  const std::string kMessageName("prodinfo/set_msgpack");
+  const std::string kSubscription(kMessageName + "_reply");
+
+  const auto scoped_subscription =
+      message_bus::ScopedSubscribe::Create(hlink_.get(), kSubscription);
+  if (!scoped_subscription) {
+    LOG(ERROR) << "Failed to subscribe to '" << kSubscription << "'";
+    return false;
+  }
+
+  if (!hlink_->Send(kMessageName, product_info_msgpack.data(),
+                    product_info_msgpack.size())) {
+    LOG(ERROR) << "Failed to send '" << kMessageName << "' message";
+    return false;
+  }
+
+  HLinkBuffer buffer;
+  if (!hlink_->Receive(&buffer)) {
+    return false;
+  }
+
+  if (buffer.GetMessageName() != kSubscription) {
+    LOG(ERROR) << "Received unexpected message: '" << buffer.GetMessageName()
+               << "'";
+    return false;
+  }
+  const auto payload = buffer.GetPayload();
+  if (payload.size() != 1) {
+    LOG(ERROR) << "Unexpected reply length";
+    return false;
+  }
+  if (payload[0] != 0) {
+    LOG(ERROR) << "Set product info failed";
+    return false;
+  }
+  return true;
+}
+
+bool HpkUpdater::SetCameraMode(const std::string& mode) {
+  msgpack_sbuffer sbuf;
+  msgpack_sbuffer_init(&sbuf);
+
+  const std::string key("camera-mode");
+
+  msgpack_packer pk;
+  msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+  msgpack_pack_map(&pk, 1);
+  msgpack_pack_str(&pk, key.size());
+  msgpack_pack_str_body(&pk, key.c_str(), key.size());
+  msgpack_pack_str(&pk, mode.size());
+  msgpack_pack_str_body(&pk, mode.c_str(), mode.size());
+
+  std::vector<uint8_t> product_info(sbuf.data, sbuf.data + sbuf.size);
+  if (!SetProductInfo(product_info)) {
+    LOG(ERROR) << "Failed to set dual stream mode";
+    return false;
+  }
+
   return true;
 }
 
