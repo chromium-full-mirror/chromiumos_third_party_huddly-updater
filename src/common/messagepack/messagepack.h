@@ -31,20 +31,6 @@ class Object {
   bool Is() const {
     return false;
   }
-  template <>
-  bool Is<bool>() const;
-  template <>
-  bool Is<double>() const;
-  template <>
-  bool Is<int64_t>() const;
-  template <>
-  bool Is<uint64_t>() const;
-  template <>
-  bool Is<std::string>() const;
-  template <>
-  bool Is<Map>() const;
-  template <>
-  bool Is<Array>() const;
 
   // Get<T> returns the object value as T, if the underlying type is T.
   template <typename T>
@@ -53,20 +39,6 @@ class Object {
     // returns false.
     return false;
   }
-  template <>
-  bool Get<bool>(bool* out) const;
-  template <>
-  bool Get<double>(double* out) const;
-  template <>
-  bool Get<int64_t>(int64_t* out) const;
-  template <>
-  bool Get<uint64_t>(uint64_t* out) const;
-  template <>
-  bool Get<std::string>(std::string* out) const;
-  template <>
-  bool Get<Map>(Map* out) const;
-  template <>
-  bool Get<Array>(Array* out) const;
 
   // GetAs<T> attempts to return the object value converted to T. Reasonable
   // numeric casts are performed automatically. Conversions to string is
@@ -77,14 +49,6 @@ class Object {
     // If no fully specialized template is defined, us the Get<T> function.
     return Get<T>(out);
   }
-  template <>
-  bool GetAs<int64_t>(int64_t* out) const;
-  template <>
-  bool GetAs<uint64_t>(uint64_t* out) const;
-  template <>
-  bool GetAs<double>(double* out) const;
-  template <>
-  bool GetAs<std::string>(std::string* out) const;
 
   // Convenience function
   std::string ToString() const;
@@ -92,6 +56,45 @@ class Object {
  private:
   msgpack_object object_;
 };
+
+template <>
+bool Object::Is<bool>() const;
+template <>
+bool Object::Is<double>() const;
+template <>
+bool Object::Is<int64_t>() const;
+template <>
+bool Object::Is<uint64_t>() const;
+template <>
+bool Object::Is<std::string>() const;
+template <>
+bool Object::Is<Map>() const;
+template <>
+bool Object::Is<Array>() const;
+
+template <>
+bool Object::Get<bool>(bool* out) const;
+template <>
+bool Object::Get<double>(double* out) const;
+template <>
+bool Object::Get<int64_t>(int64_t* out) const;
+template <>
+bool Object::Get<uint64_t>(uint64_t* out) const;
+template <>
+bool Object::Get<std::string>(std::string* out) const;
+template <>
+bool Object::Get<Map>(Map* out) const;
+template <>
+bool Object::Get<Array>(Array* out) const;
+
+template <>
+bool Object::GetAs<int64_t>(int64_t* out) const;
+template <>
+bool Object::GetAs<uint64_t>(uint64_t* out) const;
+template <>
+bool Object::GetAs<double>(double* out) const;
+template <>
+bool Object::GetAs<std::string>(std::string* out) const;
 
 class Map {
  public:
