@@ -5,7 +5,6 @@
 #include "hpk_updater.h"
 
 #include <unistd.h>
-#include <base/memory/ptr_util.h>
 #include <utility>
 #include <regex.h>
 
@@ -21,8 +20,8 @@ constexpr auto kDeviceWaitTimeoutMillisec = 30000;
 
 std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
                                                uint16_t usb_product_id) {
-  auto instance =
-      base::WrapUnique(new HpkUpdater(usb_vendor_id, usb_product_id));
+  auto instance = std::unique_ptr<HpkUpdater>(
+      new HpkUpdater(usb_vendor_id, usb_product_id));
 
   instance->usb_ = huddly::Usb::Create();
   if (!instance->usb_) {

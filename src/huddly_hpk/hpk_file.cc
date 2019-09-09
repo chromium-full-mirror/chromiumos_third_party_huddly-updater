@@ -6,7 +6,6 @@
 
 #include <base/files/file_util.h>
 #include <base/json/json_reader.h>
-#include <base/memory/ptr_util.h>
 
 namespace huddly {
 
@@ -30,7 +29,7 @@ std::unique_ptr<HpkFile> HpkFile::Create(const base::FilePath& path,
 
 std::unique_ptr<HpkFile> HpkFile::Create(const std::string& file_contents,
                                          std::string* error_msg) {
-  auto instance = base::WrapUnique(new HpkFile());
+  auto instance = std::unique_ptr<HpkFile>(new HpkFile());
   if (!instance->Setup(file_contents, error_msg)) {
     return nullptr;
   }
@@ -69,8 +68,13 @@ bool HpkFile::ExtractManifestData(std::string* error_msg) {
 bool HpkFile::ParseJsonManifest(std::string* error_msg) {
   int error_code;
   std::string json_error_msg;
-  manifest_root_ = base::JSONReader().ReadAndReturnError(
+  // Older implementatons of ReadAndReturnError produces scoped_ptr that must be
+  // observed, to build on both CrOS and older versions of Android, as such we
+  // get the raw pointer and recast to unique_ptr regardless if it is shared_ptr
+  // or unique_ptr
+  auto root_value = base::JSONReader().ReadAndReturnError(
       manifest_data_, base::JSON_PARSE_RFC, &error_code, &json_error_msg);
+  manifest_root_.reset(std::move(root_value.release()));
 
   if (!manifest_root_) {
     *error_msg = "Failed to parse json data:\n" + json_error_msg;

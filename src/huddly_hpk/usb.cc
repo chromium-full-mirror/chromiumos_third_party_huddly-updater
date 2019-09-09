@@ -4,7 +4,6 @@
 #include "usb.h"
 
 #include <base/logging.h>
-#include <base/memory/ptr_util.h>
 #include <base/time/time.h>
 #include <unistd.h>
 #include <algorithm>
@@ -150,7 +149,7 @@ bool UsbDevice::WaitForDetach(const unsigned int timeout_ms) {
 }
 
 std::unique_ptr<UsbDeviceList> UsbDeviceList::Create(libusb_context* ctx) {
-  auto object = base::WrapUnique((new UsbDeviceList()));
+  auto object = std::unique_ptr<UsbDeviceList>((new UsbDeviceList()));
   int count = libusb_get_device_list(ctx, &object->devices_);
   if (count < 0 || object->devices_ == nullptr) {
     LOG(ERROR) << "libusb_get_device_list failed: " << libusb_error_name(count);
@@ -173,7 +172,7 @@ libusb_device** UsbDeviceList::end() {
 }
 
 std::unique_ptr<Usb> Usb::Create() {
-  auto object = base::WrapUnique(new Usb());
+  auto object = std::unique_ptr<Usb>(new Usb());
   int r = libusb_init(&object->ctx_);
   if (r) {
     LOG(ERROR) << "libusb_init failed: " << libusb_error_name(r);
@@ -207,7 +206,7 @@ std::unique_ptr<UsbDevice> Usb::FindDevice(uint16_t vid, uint16_t pid) const {
       });
 
   if (dev_it != std::end(*device_list)) {
-    return base::WrapUnique((new UsbDevice(this, *dev_it)));
+    return std::make_unique<UsbDevice>(this, *dev_it);
   }
   return nullptr;
 }

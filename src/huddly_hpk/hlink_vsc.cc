@@ -4,7 +4,6 @@
 #include "hlink_vsc.h"
 
 #include <base/logging.h>
-#include <base/memory/ptr_util.h>
 #include <msgpack.h>
 #include <algorithm>
 #include <memory>
@@ -25,7 +24,7 @@ constexpr auto kUsbBulkTransferTimeoutMillisec = 10000;
 
 std::unique_ptr<HLinkVsc> HLinkVsc::Create(
     std::unique_ptr<UsbDevice> usb_device) {
-  return base::WrapUnique(new HLinkVsc(std::move(usb_device)));
+  return std::unique_ptr<HLinkVsc>(new HLinkVsc(std::move(usb_device)));
 }
 
 HLinkVsc::HLinkVsc(std::unique_ptr<UsbDevice> usb_device)

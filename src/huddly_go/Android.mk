@@ -18,7 +18,7 @@ LOCAL_SRC_FILES := \
     flasher.cc
 
 LOCAL_C_INCLUDES := \
-  $(LOCAL_PATH)/src \
+  $(LOCAL_PATH) \
   external/libusb/libusb
 
 LOCAL_SHARED_LIBRARIES += \

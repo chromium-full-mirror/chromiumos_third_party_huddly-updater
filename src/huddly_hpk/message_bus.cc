@@ -4,8 +4,6 @@
 
 #include "message_bus.h"
 
-#include <base/memory/ptr_util.h>
-
 namespace huddly {
 namespace message_bus {
 
@@ -23,7 +21,8 @@ bool Unsubscribe(HLinkVsc* hlink, const std::string& subscription) {
 
 std::unique_ptr<ScopedSubscribe> ScopedSubscribe::Create(
     HLinkVsc* hlink, const std::string& subscription) {
-  auto instance = base::WrapUnique(new ScopedSubscribe(hlink, subscription));
+  auto instance = std::unique_ptr<ScopedSubscribe>(
+      new ScopedSubscribe(hlink, subscription));
   if (!Subscribe(hlink, subscription)) {
     return nullptr;
   }

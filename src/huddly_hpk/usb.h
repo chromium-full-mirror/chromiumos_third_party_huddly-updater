@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <functional>
 
 namespace huddly {
 
