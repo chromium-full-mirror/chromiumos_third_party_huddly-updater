@@ -10,6 +10,7 @@
 #include <string>
 
 namespace huddly {
+namespace go {
 
 class UsbDevice {
  public:
@@ -65,6 +66,7 @@ class UsbDevice {
   libusb_device_handle* dev_handle_;
 };
 
+}  // namespace go
 }  // namespace huddly
 
 #endif  // SRC_USB_DEVICE_H_
