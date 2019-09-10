@@ -6,10 +6,32 @@
 #include <base/logging.h>
 #include <base/time/time.h>
 #include <unistd.h>
+
 #include <algorithm>
 #include <functional>
 
 namespace huddly {
+
+namespace {
+
+bool is_usb_path_compatible(libusb_device* dev, const std::string& usb_path) {
+  if (usb_path.empty()) {
+    // Do not match by given path
+    return true;
+  }
+  const int kBufferSize = 9;
+  char path_buffer[kBufferSize];
+  if (usb_path.length() < kBufferSize) {
+    return false;
+  }
+  uint8_t bus_number = libusb_get_bus_number(dev);
+  uint8_t device_address = libusb_get_device_address(dev);
+  snprintf(path_buffer, kBufferSize, "/%03d/%03d", bus_number, device_address);
+  return usb_path.compare(usb_path.length() - kBufferSize + 1,
+                          std::string::npos, path_buffer) == 0;
+}
+
+}  // namespace
 
 UsbEndpoint::UsbEndpoint(const libusb_endpoint_descriptor& descriptor)
     : address_(descriptor.bEndpointAddress),
@@ -185,17 +207,24 @@ Usb::~Usb() {
   libusb_exit(ctx_);
 }
 
-std::unique_ptr<UsbDevice> Usb::FindDevice(uint16_t vid, uint16_t pid) const {
+std::unique_ptr<UsbDevice> Usb::FindDevice(uint16_t vid,
+                                           uint16_t pid,
+                                           const std::string& usb_path) const {
   auto device_list = UsbDeviceList::Create(ctx_);
 
   auto dev_it = std::find_if(
       std::begin(*device_list), std::end(*device_list),
-      [vid, pid](libusb_device* dev) {
+      [vid, pid, usb_path](libusb_device* dev) {
         libusb_device_descriptor dev_descr;
         auto r = libusb_get_device_descriptor(dev, &dev_descr);
         if (r) {
           LOG(WARNING) << "Error getting device descriptor: "
                        << libusb_error_name(r);
+          return false;
+        }
+
+        if (!is_usb_path_compatible(dev, usb_path)) {
+          // USB path mismatch
           return false;
         }
 
@@ -213,10 +242,11 @@ std::unique_ptr<UsbDevice> Usb::FindDevice(uint16_t vid, uint16_t pid) const {
 
 std::unique_ptr<UsbDevice> Usb::WaitForDevice(uint16_t vid,
                                               uint16_t pid,
+                                              const std::string& usb_path,
                                               int timeout_ms) const {
   const auto start = base::TimeTicks::Now();
   while ((base::TimeTicks::Now() - start).InMilliseconds() < timeout_ms) {
-    auto device = FindDevice(vid, pid);
+    auto device = FindDevice(vid, pid, usb_path);
     if (device) {
       return device;
     }

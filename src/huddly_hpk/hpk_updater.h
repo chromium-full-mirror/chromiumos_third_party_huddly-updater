@@ -5,6 +5,7 @@
 #define SRC_HUDDLY_HPK_HPK_UPDATER_H_
 
 #include <base/files/file_path.h>
+
 #include <memory>
 #include <string>
 #include <vector>
@@ -25,7 +26,8 @@ struct CameraInformation {
 class HpkUpdater {
  public:
   static std::unique_ptr<HpkUpdater> Create(uint16_t usb_vendor_id,
-                                            uint16_t usb_product_id);
+                                            uint16_t usb_product_id,
+                                            const std::string& usb_path = "");
 
   bool DoUpdate(base::FilePath hpk_file_path, bool force, bool udev_mode);
   bool Reboot(bool wait_for_detach);
@@ -34,7 +36,9 @@ class HpkUpdater {
   bool GetFirmwareVersion(std::string* version);
 
  private:
-  HpkUpdater(uint16_t usb_vendor_id, uint16_t usb_product_id);
+  HpkUpdater(uint16_t usb_vendor_id,
+             uint16_t usb_product_id,
+             const std::string& usb_path = "");
   HpkUpdater() {}
   bool Connect();
   bool GetCameraInformation(CameraInformation* info);
@@ -49,6 +53,7 @@ class HpkUpdater {
 
   uint16_t usb_vendor_id_;
   uint16_t usb_product_id_;
+  std::string usb_path_;
   std::unique_ptr<Usb> usb_;
   std::unique_ptr<HLinkVsc> hlink_;
   CameraInformation camera_info_;

@@ -4,9 +4,10 @@
 
 #include "hpk_updater.h"
 
-#include <unistd.h>
-#include <utility>
 #include <regex.h>
+#include <unistd.h>
+
+#include <utility>
 
 #include "../common/messagepack/messagepack.h"
 #include "hcp.h"
@@ -19,9 +20,10 @@ namespace huddly {
 constexpr auto kDeviceWaitTimeoutMillisec = 30000;
 
 std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
-                                               uint16_t usb_product_id) {
+                                               uint16_t usb_product_id,
+                                               const std::string& usb_path) {
   auto instance = std::unique_ptr<HpkUpdater>(
-      new HpkUpdater(usb_vendor_id, usb_product_id));
+      new HpkUpdater(usb_vendor_id, usb_product_id, usb_path));
 
   instance->usb_ = huddly::Usb::Create();
   if (!instance->usb_) {
@@ -245,12 +247,16 @@ bool HpkUpdater::ConfigureCamera() {
   return true;
 }
 
-HpkUpdater::HpkUpdater(uint16_t usb_vendor_id, uint16_t usb_product_id)
-    : usb_vendor_id_(usb_vendor_id), usb_product_id_(usb_product_id) {}
+HpkUpdater::HpkUpdater(uint16_t usb_vendor_id,
+                       uint16_t usb_product_id,
+                       const std::string& usb_path)
+    : usb_vendor_id_(usb_vendor_id),
+      usb_product_id_(usb_product_id),
+      usb_path_(usb_path) {}
 
 bool HpkUpdater::Connect() {
   auto usb_device = usb_->WaitForDevice(usb_vendor_id_, usb_product_id_,
-                                        kDeviceWaitTimeoutMillisec);
+                                        usb_path_, kDeviceWaitTimeoutMillisec);
   if (!usb_device) {
     LOG(ERROR) << "Could not find USB device with vid:pid="
                << huddly::UsbVidPidString(usb_vendor_id_, usb_product_id_);

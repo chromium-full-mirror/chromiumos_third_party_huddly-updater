@@ -6,10 +6,11 @@
 
 #include <base/macros.h>
 #include <libusb.h>
+
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <vector>
-#include <functional>
 
 namespace huddly {
 
@@ -84,9 +85,12 @@ class Usb {
   static std::unique_ptr<Usb> Create();
   ~Usb();
 
-  std::unique_ptr<UsbDevice> FindDevice(uint16_t vid, uint16_t pid) const;
+  std::unique_ptr<UsbDevice> FindDevice(uint16_t vid,
+                                        uint16_t pid,
+                                        const std::string& usb_path) const;
   std::unique_ptr<UsbDevice> WaitForDevice(uint16_t vid,
                                            uint16_t pid,
+                                           const std::string& usb_path,
                                            int timeout_ms) const;
   bool DeviceExists(libusb_device* device) const;
   bool WaitForDeviceDetach(libusb_device* device, int timeout_ms) const;
