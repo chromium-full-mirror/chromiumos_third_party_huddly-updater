@@ -52,7 +52,7 @@ std::string BootModeStr(BootMode boot_mode);
 
 std::string StreamModeToStr(StreamMode stream_mode);
 
-class MinicamDevice : public UsbDevice {
+class MinicamDevice : public go::UsbDevice {
  public:
    MinicamDevice(uint16_t vendor_id, uint16_t product_id,
                  std::string usb_path = "", std::string usb_serial = "");

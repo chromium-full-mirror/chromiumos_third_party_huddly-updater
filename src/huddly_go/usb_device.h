@@ -5,11 +5,16 @@
 #ifndef SRC_USB_DEVICE_H_
 #define SRC_USB_DEVICE_H_
 
+#ifdef __ANDROID__
+#include <libusb.h>
+#else
 #include <libusb-1.0/libusb.h>
+#endif
 #include <stdint.h>
 #include <string>
 
 namespace huddly {
+namespace go {
 
 class UsbDevice {
  public:
@@ -65,6 +70,7 @@ class UsbDevice {
   libusb_device_handle* dev_handle_;
 };
 
+}  // namespace go
 }  // namespace huddly
 
 #endif  // SRC_USB_DEVICE_H_

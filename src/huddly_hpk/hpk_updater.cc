@@ -4,10 +4,11 @@
 
 #include "hpk_updater.h"
 
-#include <unistd.h>
-#include <base/memory/ptr_util.h>
-#include <utility>
 #include <regex.h>
+#include <unistd.h>
+
+#include <algorithm>
+#include <utility>
 
 #include "../common/messagepack/messagepack.h"
 #include "hcp.h"
@@ -18,11 +19,15 @@
 namespace huddly {
 
 constexpr auto kDeviceWaitTimeoutMillisec = 30000;
+constexpr uint8_t kVideoInterfaceClass = 0x0e;
+constexpr uint8_t kAudioInterfaceClass = 0x01;
+constexpr uint8_t kControlInterfaceSubClass = 0x01;
 
 std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
-                                               uint16_t usb_product_id) {
-  auto instance =
-      base::WrapUnique(new HpkUpdater(usb_vendor_id, usb_product_id));
+                                               uint16_t usb_product_id,
+                                               const std::string& usb_path) {
+  auto instance = std::unique_ptr<HpkUpdater>(
+      new HpkUpdater(usb_vendor_id, usb_product_id, usb_path));
 
   instance->usb_ = huddly::Usb::Create();
   if (!instance->usb_) {
@@ -36,6 +41,17 @@ std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
   }
 
   return instance;
+}
+
+HpkUpdater::~HpkUpdater() {
+  if (!hlink_) {
+    return;
+  }
+  auto usb_device = hlink_->GetUsbDevice();
+  if (!usb_device) {
+    return;
+  }
+  ReattachMediaKernelDrivers(usb_device);
 }
 
 enum class UpdateAction {
@@ -81,7 +97,8 @@ static UpdateAction DetermineUpdateAction(const CameraInformation& camera_info,
 
 bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
                           bool force,
-                          bool udev_mode) {
+                          bool udev_mode,
+                          const std::string& configuration) {
   std::string error_str;
   const auto hpk_file = huddly::HpkFile::Create(hpk_file_path, &error_str);
 
@@ -109,7 +126,7 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
     }
 
     if (action == UpdateAction::kNoUpdateNeeded) {
-      if (!ConfigureCamera()) {
+      if (!ConfigureCamera(configuration)) {
         LOG(ERROR) << "Failed to configure camera";
         return false;
       }
@@ -152,7 +169,7 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
 
   if (action == UpdateAction::kRunVerification) {
     LOG(INFO) << "Update finished successfully";
-    if (!ConfigureCamera()) {
+    if (!ConfigureCamera(configuration)) {
       LOG(ERROR) << "Failed to configure camera";
       return false;
     }
@@ -165,6 +182,7 @@ bool HpkUpdater::Reboot(bool wait_for_detach) {
     LOG(ERROR) << "Failed to  reboot camera";
     return false;
   }
+  kernel_drivers_detached_ = false;
   return true;
 }
 
@@ -225,33 +243,76 @@ bool HpkUpdater::HpkUpdateSupported() {
   return true;
 }
 
-bool HpkUpdater::ConfigureCamera() {
-  const uint16_t kClownfishProductId = 0x0031;
-  if (usb_product_id_ == kClownfishProductId) {
-    const std::string kCameraModeDualStream("dual-stream");
-    if (camera_info_.camera_mode == kCameraModeDualStream) {
-      LOG(INFO) << "Camera already configured";
-      return true;
-    }
-
-    LOG(INFO) << "Setting dual stream mode";
-    if (!SetCameraMode(kCameraModeDualStream)) {
-      LOG(ERROR) << "Failed to set dual stream mode";
-      return false;
-    }
-
-    Reboot(false);
+bool HpkUpdater::ConfigureCamera(const std::string& configuration) {
+  const std::string kHangoutsMeetConfiguration("hmh");
+  const std::string kJamboardConfiguration("jamboard");
+  if (configuration == kHangoutsMeetConfiguration) {
+    return ConfigureCameraHmh();
+  } else if (configuration == kJamboardConfiguration) {
+    return ConfigureCameraJamboard();
   }
 
+  LOG(ERROR) << "Unknown configuration: " << configuration;
+  return false;
+}
+
+bool HpkUpdater::ConfigureCameraHmh() {
+  const uint16_t kClownfishProductId = 0x0031;
+  if (usb_product_id_ != kClownfishProductId) {
+    return true;
+  }
+
+  const std::string kCameraModeDualStream("dual-stream");
+  if (camera_info_.camera_mode == kCameraModeDualStream) {
+    LOG(INFO) << "Camera already configured";
+    return true;
+  }
+
+  if (!SetCameraMode(kCameraModeDualStream)) {
+    return false;
+  }
+
+  LOG(INFO) << "Camera configuration changed. Rebooting";
+  Reboot(false);
   return true;
 }
 
-HpkUpdater::HpkUpdater(uint16_t usb_vendor_id, uint16_t usb_product_id)
-    : usb_vendor_id_(usb_vendor_id), usb_product_id_(usb_product_id) {}
+bool HpkUpdater::ConfigureCameraJamboard() {
+  const uint16_t kBoxfishProductId = 0x0021;
+  if (usb_product_id_ != kBoxfishProductId) {
+    return true;
+  }
+
+  const std::string kCameraModeMjpeg("mjpeg");
+  if ((camera_info_.camera_mode == kCameraModeMjpeg) &&
+      (camera_info_.autozoom_enabled == false)) {
+    LOG(INFO) << "Camera already configured";
+    return true;
+  }
+
+  if (!SetCameraMode(kCameraModeMjpeg)) {
+    return false;
+  }
+
+  if (!DisableAutozoom()) {
+    return false;
+  }
+
+  LOG(INFO) << "Camera configuration changed. Rebooting";
+  Reboot(false);
+  return true;
+}
+
+HpkUpdater::HpkUpdater(uint16_t usb_vendor_id,
+                       uint16_t usb_product_id,
+                       const std::string& usb_path)
+    : usb_vendor_id_(usb_vendor_id),
+      usb_product_id_(usb_product_id),
+      usb_path_(usb_path) {}
 
 bool HpkUpdater::Connect() {
   auto usb_device = usb_->WaitForDevice(usb_vendor_id_, usb_product_id_,
-                                        kDeviceWaitTimeoutMillisec);
+                                        usb_path_, kDeviceWaitTimeoutMillisec);
   if (!usb_device) {
     LOG(ERROR) << "Could not find USB device with vid:pid="
                << huddly::UsbVidPidString(usb_vendor_id_, usb_product_id_);
@@ -266,11 +327,17 @@ bool HpkUpdater::Connect() {
     return false;
   }
 
+  if (!DetachMediaKernelDrivers(usb_device.get())) {
+    LOG(ERROR) << "Unable to detach kernel driver";
+    return false;
+  }
+
   hlink_ = HLinkVsc::Create(std::move(usb_device));
   if (!hlink_) {
     LOG(ERROR) << "Failed to create HLinkVsc instance";
     return false;
   }
+
   if (!hlink_->Connect()) {
     LOG(ERROR) << "Failed to connect to HLinkVsc device";
     return false;
@@ -325,7 +392,8 @@ bool HpkUpdater::GetCameraInformation(CameraInformation* info) {
     return false;
   }
 
-  product_info.GetValueAs<std::string>("camera-mode", &info->camera_mode);
+  product_info.GetValueAs<std::string>(kCameraModeKey, &info->camera_mode);
+  product_info.GetValueAs<bool>(kAutozoomEnableKey, &info->autozoom_enabled);
 
   return true;
 }
@@ -401,26 +469,62 @@ bool HpkUpdater::SetProductInfo(
   return true;
 }
 
-bool HpkUpdater::SetCameraMode(const std::string& mode) {
+bool HpkUpdater::SetProductInfoString(const std::string& key,
+                                      const std::string& value) {
   msgpack_sbuffer sbuf;
   msgpack_sbuffer_init(&sbuf);
-
-  const std::string key("camera-mode");
-
   msgpack_packer pk;
   msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
   msgpack_pack_map(&pk, 1);
   msgpack_pack_str(&pk, key.size());
   msgpack_pack_str_body(&pk, key.c_str(), key.size());
-  msgpack_pack_str(&pk, mode.size());
-  msgpack_pack_str_body(&pk, mode.c_str(), mode.size());
+  msgpack_pack_str(&pk, value.size());
+  msgpack_pack_str_body(&pk, value.c_str(), value.size());
 
   std::vector<uint8_t> product_info(sbuf.data, sbuf.data + sbuf.size);
   if (!SetProductInfo(product_info)) {
-    LOG(ERROR) << "Failed to set dual stream mode";
+    return false;
+  }
+  return true;
+}
+
+bool HpkUpdater::SetProductInfoBool(const std::string& key, bool value) {
+  msgpack_sbuffer sbuf;
+  msgpack_sbuffer_init(&sbuf);
+  msgpack_packer pk;
+  msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+  msgpack_pack_map(&pk, 1);
+  msgpack_pack_str(&pk, key.size());
+  msgpack_pack_str_body(&pk, key.c_str(), key.size());
+  if (value) {
+    msgpack_pack_true(&pk);
+  } else {
+    msgpack_pack_false(&pk);
+  }
+
+  std::vector<uint8_t> product_info(sbuf.data, sbuf.data + sbuf.size);
+  if (!SetProductInfo(product_info)) {
+    return false;
+  }
+  return true;
+}
+
+bool HpkUpdater::SetCameraMode(const std::string& mode) {
+  VLOG(1) << "Setting camera mode to '" << mode << "'";
+  if (!SetProductInfoString(kCameraModeKey, mode)) {
+    LOG(ERROR) << "Failed to set camera mode '" << mode << "'";
     return false;
   }
 
+  return true;
+}
+
+bool HpkUpdater::DisableAutozoom() {
+  VLOG(1) << "Disabling auto-zoom";
+  if (!SetProductInfoBool(kAutozoomEnableKey, false)) {
+    LOG(ERROR) << "Failed to disable auto-zoom";
+    return false;
+  }
   return true;
 }
 
@@ -590,6 +694,99 @@ bool HpkUpdater::HpkRun(
   }
 
   return true;
+}
+
+bool HpkUpdater::IterateMediaKernelDrivers(
+    UsbDevice* usb_device,
+    std::function<void(const libusb_interface interface)> all_drivers) {
+  if (!usb_device) {
+    LOG(ERROR) << "Failed to obtain usb device";
+    return false;
+  }
+
+  auto config = usb_device->GetActiveConfigDescriptor();
+
+  if (!config) {
+    LOG(ERROR) << "Failed to get active configuration descriptor";
+    return false;
+  }
+
+  const int num_interfaces = config->bNumInterfaces;
+
+  const auto interface_begin = config->interface;
+  const auto interface_end = config->interface + num_interfaces;
+  std::for_each(interface_begin, interface_end, all_drivers);
+  return true;
+}
+
+bool HpkUpdater::DetachMediaKernelDrivers(UsbDevice* usb_device) {
+  return IterateMediaKernelDrivers(
+      usb_device, [this, usb_device](const libusb_interface interface) {
+        const auto interface_descr = &interface.altsetting[0];
+        const int interface_num = interface_descr->bInterfaceNumber;
+        bool driver_was_active = false;
+        if (interface_descr->bInterfaceClass != kVideoInterfaceClass &&
+            interface_descr->bInterfaceClass != kAudioInterfaceClass) {
+          return;
+        }
+        if (!usb_device->CheckKernelDriverActive(interface_num,
+                                                 &driver_was_active)) {
+          LOG(WARNING)
+              << "Unable to determine state of kernel driver at interface:"
+              << interface_num;
+          return;
+        }
+
+        if (driver_was_active &&
+            !usb_device->DetachKernelDriver(interface_num)) {
+          LOG(ERROR) << "Unable to detach active kernel driver for interface:"
+                     << interface_num;
+          return;
+        }
+
+        // We must detach and claim ownership of the control interfaces to
+        // prevent another service from reclaiming it.
+        if (interface_descr->bInterfaceSubClass != kControlInterfaceSubClass) {
+          return;
+        }
+
+        // Claim ownership of the controllers
+        if (!usb_device->ClaimInterface(interface_num)) {
+          LOG(ERROR) << "Failed to claim interface " << interface_num;
+          return;
+        }
+        kernel_drivers_detached_ = true;
+      });
+}
+
+bool HpkUpdater::ReattachMediaKernelDrivers(UsbDevice* usb_device) {
+  if (!kernel_drivers_detached_) {
+    return true;
+  }
+  return IterateMediaKernelDrivers(
+      usb_device, [usb_device](const libusb_interface interface) {
+        const auto interface_descr = &interface.altsetting[0];
+        const int interface_num = interface_descr->bInterfaceNumber;
+        if ((interface_descr->bInterfaceClass != kVideoInterfaceClass &&
+             interface_descr->bInterfaceClass != kAudioInterfaceClass)
+            // We only need to reattach the controller classes as the rest will
+            // follow
+            ||
+            interface_descr->bInterfaceSubClass != kControlInterfaceSubClass) {
+          return;
+        }
+
+        if (!usb_device->ReleaseInterface(interface_num)) {
+          LOG(WARNING) << "Failed to release interface " << interface_num;
+          return;
+        }
+
+        if (!usb_device->ReattachKernelDriver(interface_num)) {
+          LOG(ERROR) << "Unable to reattach active kernel driver for interface:"
+                     << interface_num;
+          return;
+        }
+      });
 }
 
 }  // namespace huddly

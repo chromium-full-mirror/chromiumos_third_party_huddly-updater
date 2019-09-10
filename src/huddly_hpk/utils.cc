@@ -12,7 +12,8 @@ namespace huddly {
 
 std::string Uint8ToHexString(uint8_t value) {
   std::ostringstream oss;
-  oss << std::hex << std::setfill('0') << std::setw(2) << value;
+  oss << std::hex << std::setfill('0') << std::setw(2)
+      << static_cast<int>(value);
   return oss.str();
 }
 

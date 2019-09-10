@@ -11,6 +11,7 @@
 #include "usb_device.h"
 
 namespace huddly {
+namespace go {
 
 const int kStrBufSize = 200;
 
@@ -436,4 +437,5 @@ int UsbDevice::GetInterfaceNumber() const {
   return 0;
 }
 
+}  // namespace go
 }  // namespace huddly

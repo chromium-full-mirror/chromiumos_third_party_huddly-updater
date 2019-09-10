@@ -12,6 +12,14 @@
 
 #include <fstream>
 
+#ifdef __ANDROID__
+#include <fcntl.h>     // open flags
+#include <ftw.h>       // nftw
+#include <libgen.h>    // dirname
+#include <sys/stat.h>  // mkdir
+#include <ziparchive/zip_archive.h>
+#endif
+
 #include "tools.h"
 
 namespace huddly {
@@ -96,5 +104,141 @@ uint32_t ReadFileToArray(const std::string& img_path,
   fin.read(reinterpret_cast<char*>(data), data_len);
   return fin.gcount();
 }
+
+#ifdef __ANDROID__
+
+/**
+ * Returns a pointer to a string  representing the parent directory
+ * of the given path
+ *
+ * Note: Required call to {@code free()} to prevent memory leak
+ *
+ * @param path - the full path
+ * @return an allocated char pointer of the name of the parent directory
+ */
+static inline char* parentname(const char* path) {
+  size_t slen = strlen(dirname(path)) + 1;
+  char* sub_path = (char*)malloc(slen);
+  std::strncpy(sub_path, path, slen);
+  sub_path[slen - 1] = (char)'\0';
+  return sub_path;
+}
+
+/**
+ * Given an absolute directory path creates the necessary parent directories
+ *
+ * Note: Absolute Path required
+ *
+ * @param path - absolute path
+ * @param mode - masked File permissions bits for new directory
+ * @return |0| if successful, |-1| otherwise.
+ */
+static int mkdirs(const char* path, mode_t mode) {
+  if (!path) {
+    errno = EINVAL;
+    return -1;
+  }
+
+  // check if path already exists
+  std::ifstream f(path);
+  if (f.good()) {
+    return 0;
+  }
+
+  // Check path is root
+  if (strlen(path) == 1 && path[0] == '/') {
+    return 0;
+  }
+
+  char* sub_path = parentname(path);
+  mkdirs(sub_path, mode);
+  free(sub_path);
+
+  return mkdir(path, mode);
+}
+
+/**
+ * Creates parent hierarchy if it does not exist
+ *
+ * Note: Absolute Path required
+ *
+ * @param path - absolute path
+ * @param mode - masked File permissions bits for created directories
+ * @return |0| if successful, |-1| otherwise.
+ */
+static int CheckFileParents(const char* path, mode_t mode) {
+  char* sub_path = parentname(path);
+  int ret = mkdirs(sub_path, mode);
+  free(sub_path);
+  return ret;
+}
+
+/**
+ * Uncompresses a zip file to a given directory
+ *
+ * @param path - absolute destination directory path
+ * @param mode - absolute path to zip file
+ * @param err_msg - error message
+ * @return |true| if successful, |false| otherwise.
+ */
+bool UncompressZip(const char* dir_path,
+                   const char* file_path,
+                   std::string* err_msg) {
+  ZipArchiveHandle handle;
+  void* iteration_cookie;
+  ZipEntry data;
+  ZipString name;
+
+  if (OpenArchive(file_path, &handle) != 0) {
+    *err_msg = std::string("Unable to open archive: ") + "\t" + strerror(errno);
+    return false;
+  }
+
+  if (StartIteration(handle, &iteration_cookie, nullptr, nullptr) != 0) {
+    *err_msg = std::string("Unable to uncompress: ") + "\t" + strerror(errno);
+    return false;
+  }
+
+  while (!Next(iteration_cookie, &data, &name)) {
+    std::string file_entry_name(name.name, name.name + name.name_length);
+    std::string path = std::string(dir_path) + file_entry_name;
+    CheckFileParents(path.c_str(), 0700);
+
+    int fd = open(path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0600);
+
+    if (fd < 0) {
+      *err_msg = std::string("Unable to create temp file: ") + path + "\t" +
+                 strerror(errno);
+      return false;
+    }
+
+    int32_t res = ExtractEntryToFile(handle, &data, fd);
+    close(fd);
+
+    if (res != 0) {
+      *err_msg =
+          std::string("Unable to extract file: ") + "\t" + strerror(errno);
+      return false;
+    }
+  }
+
+  EndIteration(iteration_cookie);
+  CloseArchive(handle);
+
+  return true;
+}
+
+int NftwDeleteFile(const char* fpath,
+                   const struct stat* sb,
+                   int typeFlag,
+                   struct FTW* ftwbuf) {
+  int ret = remove(fpath);
+  if (ret != 0) {
+    LOG(INFO) << "Error deleting: " << fpath << strerror(errno);
+  }
+  return ret;
+}
+
+#endif
 
 }  // namespace huddly

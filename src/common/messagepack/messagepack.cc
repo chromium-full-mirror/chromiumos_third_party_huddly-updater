@@ -5,7 +5,14 @@
 
 #include <base/compiler_specific.h>
 #include <base/logging.h>
-#include <base/memory/ptr_util.h>
+
+// Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.
+// This is needed for android nyc builds
+#if __ANDROID__
+#if !defined(FALLTHROUGH) && defined(__clang__)
+#define FALLTHROUGH [[clang::fallthrough]]
+#endif
+#endif
 
 namespace huddly {
 namespace messagepack {
@@ -312,7 +319,7 @@ Unpacker::Unpacker(const std::vector<uint8_t>& packed) : packed_(packed) {
 }
 
 std::unique_ptr<Unpacker> Unpacker::Create(const std::vector<uint8_t>& packed) {
-  auto unpacker = base::WrapUnique(new Unpacker(packed));
+  auto unpacker = std::unique_ptr<Unpacker>(new Unpacker(packed));
 
   if (packed.empty()) {
     return nullptr;

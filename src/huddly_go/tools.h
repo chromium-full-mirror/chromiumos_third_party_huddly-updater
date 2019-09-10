@@ -25,6 +25,17 @@ uint32_t ReadFileToArray(const std::string& img_path,
                          uint8_t* data,
                          std::string* err_msg);
 
+#ifdef __ANDROID__
+bool UncompressZip(const char* dir_path,
+                   const char* file_path,
+                   std::string* err_msg);
+
+int NftwDeleteFile(const char* fpath,
+                   const struct stat* sb,
+                   int typeFlag,
+                   struct FTW* ftwbuf);
+#endif
+
 }  // namespace huddly
 
 #endif  // SRC_TOOLS_H_
