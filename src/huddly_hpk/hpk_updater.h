@@ -31,6 +31,7 @@ class HpkUpdater {
   bool Reboot(bool wait_for_detach);
   bool RebootAndReattach();
   bool HpkUpdateSupported();
+  bool GetFirmwareVersion(std::string* version);
 
  private:
   HpkUpdater(uint16_t usb_vendor_id, uint16_t usb_product_id);
@@ -41,7 +42,6 @@ class HpkUpdater {
   bool SetProductInfo(const std::vector<uint8_t>& product_info_msgpack);
   bool SetCameraMode(const std::string& mode);
   bool ConfigureCamera();
-  bool GetFirmwareVersion(std::string* version);
   bool DoSingleUpdatePass(const HpkFile& hpk_file, bool* reboot_needed);
   // status_handler shall return false until finished, then true.
   bool HpkRun(const std::string& filename,
