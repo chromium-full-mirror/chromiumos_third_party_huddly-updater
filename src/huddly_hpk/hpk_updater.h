@@ -21,7 +21,11 @@ struct CameraInformation {
   std::string ram_boot_selector;
   std::string boot_decision;
   std::string camera_mode;
+  bool autozoom_enabled;
 };
+
+const std::string kCameraModeKey("camera-mode");
+const std::string kAutozoomEnableKey("autozoom_enabled");
 
 class HpkUpdater {
  public:
@@ -44,8 +48,13 @@ class HpkUpdater {
   bool GetCameraInformation(CameraInformation* info);
   bool GetProductInfo(std::vector<uint8_t>* product_info_msgpack);
   bool SetProductInfo(const std::vector<uint8_t>& product_info_msgpack);
+  bool SetProductInfoString(const std::string& key, const std::string& value);
+  bool SetProductInfoBool(const std::string& key, bool value);
   bool SetCameraMode(const std::string& mode);
+  bool DisableAutozoom();
   bool ConfigureCamera();
+  bool ConfigureCameraChromeOS();
+  bool ConfigureCameraAndroid();
   bool DoSingleUpdatePass(const HpkFile& hpk_file, bool* reboot_needed);
   // status_handler shall return false until finished, then true.
   bool HpkRun(const std::string& filename,

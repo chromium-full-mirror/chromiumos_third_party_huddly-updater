@@ -236,23 +236,57 @@ bool HpkUpdater::HpkUpdateSupported() {
 }
 
 bool HpkUpdater::ConfigureCamera() {
+#if defined __ANDROID__
+  return ConfigureCameraAndroid();
+#else
+  return ConfigureCameraChromeOS();
+#endif
+}
+
+bool HpkUpdater::ConfigureCameraChromeOS() {
   const uint16_t kClownfishProductId = 0x0031;
-  if (usb_product_id_ == kClownfishProductId) {
-    const std::string kCameraModeDualStream("dual-stream");
-    if (camera_info_.camera_mode == kCameraModeDualStream) {
-      LOG(INFO) << "Camera already configured";
-      return true;
-    }
-
-    LOG(INFO) << "Setting dual stream mode";
-    if (!SetCameraMode(kCameraModeDualStream)) {
-      LOG(ERROR) << "Failed to set dual stream mode";
-      return false;
-    }
-
-    Reboot(false);
+  if (usb_product_id_ != kClownfishProductId) {
+    return true;
   }
 
+  const std::string kCameraModeDualStream("dual-stream");
+  if (camera_info_.camera_mode == kCameraModeDualStream) {
+    LOG(INFO) << "Camera already configured";
+    return true;
+  }
+
+  if (!SetCameraMode(kCameraModeDualStream)) {
+    return false;
+  }
+
+  LOG(INFO) << "Camera configuration changed. Rebooting";
+  Reboot(false);
+  return true;
+}
+
+bool HpkUpdater::ConfigureCameraAndroid() {
+  const uint16_t kBoxfishProductId = 0x0021;
+  if (usb_product_id_ != kBoxfishProductId) {
+    return true;
+  }
+
+  const std::string kCameraModeMjpeg("mjpeg");
+  if ((camera_info_.camera_mode == kCameraModeMjpeg) &&
+      (camera_info_.autozoom_enabled == false)) {
+    LOG(INFO) << "Camera already configured";
+    return true;
+  }
+
+  if (!SetCameraMode(kCameraModeMjpeg)) {
+    return false;
+  }
+
+  if (!DisableAutozoom()) {
+    return false;
+  }
+
+  LOG(INFO) << "Camera configuration changed. Rebooting";
+  Reboot(false);
   return true;
 }
 
@@ -345,7 +379,8 @@ bool HpkUpdater::GetCameraInformation(CameraInformation* info) {
     return false;
   }
 
-  product_info.GetValueAs<std::string>("camera-mode", &info->camera_mode);
+  product_info.GetValueAs<std::string>(kCameraModeKey, &info->camera_mode);
+  product_info.GetValueAs<bool>(kAutozoomEnableKey, &info->autozoom_enabled);
 
   return true;
 }
@@ -421,26 +456,62 @@ bool HpkUpdater::SetProductInfo(
   return true;
 }
 
-bool HpkUpdater::SetCameraMode(const std::string& mode) {
+bool HpkUpdater::SetProductInfoString(const std::string& key,
+                                      const std::string& value) {
   msgpack_sbuffer sbuf;
   msgpack_sbuffer_init(&sbuf);
-
-  const std::string key("camera-mode");
-
   msgpack_packer pk;
   msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
   msgpack_pack_map(&pk, 1);
   msgpack_pack_str(&pk, key.size());
   msgpack_pack_str_body(&pk, key.c_str(), key.size());
-  msgpack_pack_str(&pk, mode.size());
-  msgpack_pack_str_body(&pk, mode.c_str(), mode.size());
+  msgpack_pack_str(&pk, value.size());
+  msgpack_pack_str_body(&pk, value.c_str(), value.size());
 
   std::vector<uint8_t> product_info(sbuf.data, sbuf.data + sbuf.size);
   if (!SetProductInfo(product_info)) {
-    LOG(ERROR) << "Failed to set dual stream mode";
+    return false;
+  }
+  return true;
+}
+
+bool HpkUpdater::SetProductInfoBool(const std::string& key, bool value) {
+  msgpack_sbuffer sbuf;
+  msgpack_sbuffer_init(&sbuf);
+  msgpack_packer pk;
+  msgpack_packer_init(&pk, &sbuf, msgpack_sbuffer_write);
+  msgpack_pack_map(&pk, 1);
+  msgpack_pack_str(&pk, key.size());
+  msgpack_pack_str_body(&pk, key.c_str(), key.size());
+  if (value) {
+    msgpack_pack_true(&pk);
+  } else {
+    msgpack_pack_false(&pk);
+  }
+
+  std::vector<uint8_t> product_info(sbuf.data, sbuf.data + sbuf.size);
+  if (!SetProductInfo(product_info)) {
+    return false;
+  }
+  return true;
+}
+
+bool HpkUpdater::SetCameraMode(const std::string& mode) {
+  VLOG(1) << "Setting camera mode to '" << mode << "'";
+  if (!SetProductInfoString(kCameraModeKey, mode)) {
+    LOG(ERROR) << "Failed to set camera mode '" << mode << "'";
     return false;
   }
 
+  return true;
+}
+
+bool HpkUpdater::DisableAutozoom() {
+  VLOG(1) << "Disabling auto-zoom";
+  if (!SetProductInfoBool(kAutozoomEnableKey, false)) {
+    LOG(ERROR) << "Failed to disable auto-zoom";
+    return false;
+  }
   return true;
 }
 
