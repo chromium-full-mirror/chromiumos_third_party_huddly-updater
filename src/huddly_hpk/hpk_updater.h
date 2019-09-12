@@ -28,7 +28,7 @@ class HpkUpdater {
   static std::unique_ptr<HpkUpdater> Create(uint16_t usb_vendor_id,
                                             uint16_t usb_product_id,
                                             const std::string& usb_path = "");
-
+  virtual ~HpkUpdater();
   bool DoUpdate(base::FilePath hpk_file_path, bool force, bool udev_mode);
   bool Reboot(bool wait_for_detach);
   bool RebootAndReattach();
@@ -50,6 +50,11 @@ class HpkUpdater {
   // status_handler shall return false until finished, then true.
   bool HpkRun(const std::string& filename,
               std::function<bool(std::vector<uint8_t>)> status_handler);
+  bool IterateMediaKernelDrivers(
+      UsbDevice* usb_device,
+      std::function<void(const libusb_interface interface)> all_drivers);
+  bool DetachMediaKernelDrivers(UsbDevice* usb_device);
+  bool ReattachMediaKernelDrivers(UsbDevice* usb_device);
 
   uint16_t usb_vendor_id_;
   uint16_t usb_product_id_;
@@ -57,6 +62,7 @@ class HpkUpdater {
   std::unique_ptr<Usb> usb_;
   std::unique_ptr<HLinkVsc> hlink_;
   CameraInformation camera_info_;
+  bool kernel_drivers_detached_ = false;
 };
 
 }  // namespace huddly

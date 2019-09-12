@@ -94,6 +94,63 @@ uint16_t UsbDevice::GetProductId() const {
   return device_descriptor_.idProduct;
 }
 
+bool UsbDevice::CheckKernelDriverActive(uint8_t interface_number,
+                                        bool* driver_active) {
+  if (!devh_) {
+    LOG(ERROR) << "Device not open";
+    return false;
+  }
+
+  int r = libusb_kernel_driver_active(devh_, interface_number);
+  if (r < 0 || r > 1) {
+    LOG(ERROR) << "Invalid return value for libusb_kernel_driver_active: "
+               << libusb_error_name(r);
+    return false;
+  }
+
+  // ret == 1: A kernel driver is active.
+  *driver_active = r == 1;
+
+  VLOG(1) << "Kernel driver for interface " << unsigned(interface_number)
+          << " was active: " << std::boolalpha << bool(*driver_active);
+  return true;
+}
+
+bool UsbDevice::DetachKernelDriver(uint8_t interface_number) {
+  if (!devh_) {
+    LOG(ERROR) << "Device not open";
+    return false;
+  }
+
+  int r = libusb_detach_kernel_driver(devh_, interface_number);
+  if (r == 0) {
+    VLOG(1) << "Kernel driver detached for interface # "
+            << unsigned(interface_number);
+    return true;
+  }
+
+  LOG(ERROR) << "libusb_detach_kernel_driver failed: " << libusb_error_name(r);
+  return false;
+}
+
+bool UsbDevice::ReattachKernelDriver(uint8_t interface_number) {
+  if (!devh_) {
+    LOG(ERROR) << "Device not open";
+    return false;
+  }
+
+  int r = libusb_attach_kernel_driver(devh_, interface_number);
+  if (r != 0) {
+    LOG(ERROR) << "libusb_attach_kernel_driver failed: "
+               << libusb_error_name(r);
+    return false;
+  }
+
+  VLOG(1) << "Kernel driver reattached for interface # "
+          << unsigned(interface_number);
+  return true;
+}
+
 bool UsbDevice::ClaimInterface(uint8_t interface_number) {
   if (!devh_) {
     LOG(ERROR) << "Device not open";

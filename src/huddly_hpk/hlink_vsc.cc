@@ -36,6 +36,10 @@ HLinkVsc::~HLinkVsc() {
   }
 }
 
+UsbDevice* HLinkVsc::GetUsbDevice() {
+  return usb_device_.get();
+}
+
 bool HLinkVsc::Connect() {
   if (!FindInterface()) {
     LOG(ERROR) << "HLink failed to find HLink interface";

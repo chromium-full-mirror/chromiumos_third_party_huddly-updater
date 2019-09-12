@@ -7,6 +7,7 @@
 #include <regex.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <utility>
 
 #include "../common/messagepack/messagepack.h"
@@ -18,6 +19,9 @@
 namespace huddly {
 
 constexpr auto kDeviceWaitTimeoutMillisec = 30000;
+constexpr uint8_t kVideoInterfaceClass = 0x0e;
+constexpr uint8_t kAudioInterfaceClass = 0x01;
+constexpr uint8_t kControlInterfaceSubClass = 0x01;
 
 std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
                                                uint16_t usb_product_id,
@@ -37,6 +41,10 @@ std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
   }
 
   return instance;
+}
+
+HpkUpdater::~HpkUpdater() {
+  ReattachMediaKernelDrivers(hlink_->GetUsbDevice());
 }
 
 enum class UpdateAction {
@@ -166,6 +174,7 @@ bool HpkUpdater::Reboot(bool wait_for_detach) {
     LOG(ERROR) << "Failed to  reboot camera";
     return false;
   }
+  kernel_drivers_detached_ = false;
   return true;
 }
 
@@ -271,11 +280,17 @@ bool HpkUpdater::Connect() {
     return false;
   }
 
+  if (!DetachMediaKernelDrivers(usb_device.get())) {
+    LOG(ERROR) << "Unable to detach kernel driver";
+    return false;
+  }
+
   hlink_ = HLinkVsc::Create(std::move(usb_device));
   if (!hlink_) {
     LOG(ERROR) << "Failed to create HLinkVsc instance";
     return false;
   }
+
   if (!hlink_->Connect()) {
     LOG(ERROR) << "Failed to connect to HLinkVsc device";
     return false;
@@ -595,6 +610,99 @@ bool HpkUpdater::HpkRun(
   }
 
   return true;
+}
+
+bool HpkUpdater::IterateMediaKernelDrivers(
+    UsbDevice* usb_device,
+    std::function<void(const libusb_interface interface)> all_drivers) {
+  if (!usb_device) {
+    LOG(ERROR) << "Failed to obtain usb device";
+    return false;
+  }
+
+  auto config = usb_device->GetActiveConfigDescriptor();
+
+  if (!config) {
+    LOG(ERROR) << "Failed to get active configuration descriptor";
+    return false;
+  }
+
+  const int num_interfaces = config->bNumInterfaces;
+
+  const auto interface_begin = config->interface;
+  const auto interface_end = config->interface + num_interfaces;
+  std::for_each(interface_begin, interface_end, all_drivers);
+  return true;
+}
+
+bool HpkUpdater::DetachMediaKernelDrivers(UsbDevice* usb_device) {
+  return IterateMediaKernelDrivers(
+      usb_device, [this, usb_device](const libusb_interface interface) {
+        const auto interface_descr = &interface.altsetting[0];
+        const int interface_num = interface_descr->bInterfaceNumber;
+        bool driver_was_active = false;
+        if (interface_descr->bInterfaceClass != kVideoInterfaceClass &&
+            interface_descr->bInterfaceClass != kAudioInterfaceClass) {
+          return;
+        }
+        if (!usb_device->CheckKernelDriverActive(interface_num,
+                                                 &driver_was_active)) {
+          LOG(WARNING)
+              << "Unable to determine state of kernel driver at interface:"
+              << interface_num;
+          return;
+        }
+
+        if (driver_was_active &&
+            !usb_device->DetachKernelDriver(interface_num)) {
+          LOG(ERROR) << "Unable to detach active kernel driver for interface:"
+                     << interface_num;
+          return;
+        }
+
+        // We must detach and claim ownership of the control interfaces to
+        // prevent another service from reclaiming it.
+        if (interface_descr->bInterfaceSubClass != kControlInterfaceSubClass) {
+          return;
+        }
+
+        // Claim ownership of the controllers
+        if (!usb_device->ClaimInterface(interface_num)) {
+          LOG(ERROR) << "Failed to claim interface " << interface_num;
+          return;
+        }
+        kernel_drivers_detached_ = true;
+      });
+}
+
+bool HpkUpdater::ReattachMediaKernelDrivers(UsbDevice* usb_device) {
+  if (!kernel_drivers_detached_) {
+    return true;
+  }
+  return IterateMediaKernelDrivers(
+      usb_device, [usb_device](const libusb_interface interface) {
+        const auto interface_descr = &interface.altsetting[0];
+        const int interface_num = interface_descr->bInterfaceNumber;
+        if ((interface_descr->bInterfaceClass != kVideoInterfaceClass &&
+             interface_descr->bInterfaceClass != kAudioInterfaceClass)
+            // We only need to reattach the controller classes as the rest will
+            // follow
+            ||
+            interface_descr->bInterfaceSubClass != kControlInterfaceSubClass) {
+          return;
+        }
+
+        if (!usb_device->ReleaseInterface(interface_num)) {
+          LOG(WARNING) << "Failed to release interface " << interface_num;
+          return;
+        }
+
+        if (!usb_device->ReattachKernelDriver(interface_num)) {
+          LOG(ERROR) << "Unable to reattach active kernel driver for interface:"
+                     << interface_num;
+          return;
+        }
+      });
 }
 
 }  // namespace huddly

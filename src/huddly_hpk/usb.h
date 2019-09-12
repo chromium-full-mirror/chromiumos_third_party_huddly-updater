@@ -41,6 +41,9 @@ class UsbDevice {
   GetActiveConfigDescriptor();
   uint16_t GetVendorId() const;
   uint16_t GetProductId() const;
+  bool CheckKernelDriverActive(uint8_t interface_number, bool* driver_active);
+  bool DetachKernelDriver(uint8_t interface_number);
+  bool ReattachKernelDriver(uint8_t interface_number);
   bool ClaimInterface(uint8_t interface_number);
   bool ReleaseInterface(uint8_t interface_number);
   bool BulkWrite(const UsbEndpoint& endpoint,
