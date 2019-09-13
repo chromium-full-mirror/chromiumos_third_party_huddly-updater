@@ -90,7 +90,8 @@ static UpdateAction DetermineUpdateAction(const CameraInformation& camera_info,
 
 bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
                           bool force,
-                          bool udev_mode) {
+                          bool udev_mode,
+                          const std::string& configuration) {
   std::string error_str;
   const auto hpk_file = huddly::HpkFile::Create(hpk_file_path, &error_str);
 
@@ -118,7 +119,7 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
     }
 
     if (action == UpdateAction::kNoUpdateNeeded) {
-      if (!ConfigureCamera()) {
+      if (!ConfigureCamera(configuration)) {
         LOG(ERROR) << "Failed to configure camera";
         return false;
       }
@@ -161,7 +162,7 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
 
   if (action == UpdateAction::kRunVerification) {
     LOG(INFO) << "Update finished successfully";
-    if (!ConfigureCamera()) {
+    if (!ConfigureCamera(configuration)) {
       LOG(ERROR) << "Failed to configure camera";
       return false;
     }
@@ -235,15 +236,20 @@ bool HpkUpdater::HpkUpdateSupported() {
   return true;
 }
 
-bool HpkUpdater::ConfigureCamera() {
-#if defined __ANDROID__
-  return ConfigureCameraAndroid();
-#else
-  return ConfigureCameraChromeOS();
-#endif
+bool HpkUpdater::ConfigureCamera(const std::string& configuration) {
+  const std::string kHangoutsMeetConfiguration("hmh");
+  const std::string kJamboardConfiguration("jamboard");
+  if (configuration == kHangoutsMeetConfiguration) {
+    return ConfigureCameraHmh();
+  } else if (configuration == kJamboardConfiguration) {
+    return ConfigureCameraJamboard();
+  }
+
+  LOG(ERROR) << "Unknown configuration: " << configuration;
+  return false;
 }
 
-bool HpkUpdater::ConfigureCameraChromeOS() {
+bool HpkUpdater::ConfigureCameraHmh() {
   const uint16_t kClownfishProductId = 0x0031;
   if (usb_product_id_ != kClownfishProductId) {
     return true;
@@ -264,7 +270,7 @@ bool HpkUpdater::ConfigureCameraChromeOS() {
   return true;
 }
 
-bool HpkUpdater::ConfigureCameraAndroid() {
+bool HpkUpdater::ConfigureCameraJamboard() {
   const uint16_t kBoxfishProductId = 0x0021;
   if (usb_product_id_ != kBoxfishProductId) {
     return true;

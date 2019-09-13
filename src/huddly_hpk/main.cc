@@ -22,6 +22,8 @@ int main(int argc, char* argv[]) {
   DEFINE_bool(udev_mode, false,
               "Use when triggered by udev. Will run only one update pass per "
               "invokation");
+  DEFINE_string(configuration, "hmh",
+                "Camera configuration to set after update");
   DEFINE_int32(v, 0, "Diagnostic message verbosity level");
 
   brillo::FlagHelper::Init(argc, argv, argv[0]);
@@ -58,7 +60,7 @@ int main(int argc, char* argv[]) {
   }
 
   if (!updater->DoUpdate(base::FilePath(FLAGS_file_name), FLAGS_force,
-                         FLAGS_udev_mode)) {
+                         FLAGS_udev_mode, FLAGS_configuration)) {
     LOG(ERROR) << "Huddly hpk updater failed";
     return EXIT_FAILURE;
   }

@@ -33,7 +33,10 @@ class HpkUpdater {
                                             uint16_t usb_product_id,
                                             const std::string& usb_path = "");
   virtual ~HpkUpdater();
-  bool DoUpdate(base::FilePath hpk_file_path, bool force, bool udev_mode);
+  bool DoUpdate(base::FilePath hpk_file_path,
+                bool force,
+                bool udev_mode,
+                const std::string& configuration);
   bool Reboot(bool wait_for_detach);
   bool RebootAndReattach();
   bool HpkUpdateSupported();
@@ -52,9 +55,9 @@ class HpkUpdater {
   bool SetProductInfoBool(const std::string& key, bool value);
   bool SetCameraMode(const std::string& mode);
   bool DisableAutozoom();
-  bool ConfigureCamera();
-  bool ConfigureCameraChromeOS();
-  bool ConfigureCameraAndroid();
+  bool ConfigureCamera(const std::string& configuration);
+  bool ConfigureCameraHmh();
+  bool ConfigureCameraJamboard();
   bool DoSingleUpdatePass(const HpkFile& hpk_file, bool* reboot_needed);
   // status_handler shall return false until finished, then true.
   bool HpkRun(const std::string& filename,
