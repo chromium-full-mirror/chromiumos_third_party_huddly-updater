@@ -44,7 +44,14 @@ std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
 }
 
 HpkUpdater::~HpkUpdater() {
-  ReattachMediaKernelDrivers(hlink_->GetUsbDevice());
+  if (!hlink_) {
+    return;
+  }
+  auto usb_device = hlink_->GetUsbDevice();
+  if (!usb_device) {
+    return;
+  }
+  ReattachMediaKernelDrivers(usb_device);
 }
 
 enum class UpdateAction {
