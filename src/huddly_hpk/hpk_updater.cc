@@ -4,10 +4,10 @@
 
 #include "hpk_updater.h"
 
-#include <regex.h>
 #include <unistd.h>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <utility>
 
@@ -228,32 +228,9 @@ bool HpkUpdater::HpkUpdateSupported() {
     return true;
   }
 
-  const int kMaxGroups = 4;  // 3 digit groups + overall match
-  regmatch_t groups[kMaxGroups];
-  std::string regex_string =
-      R"(HuddlyIQ-([[:digit:]]+)\.([[:digit:]]+)\.([[:digit:]]+))";
-  regex_t regex;
-  if (regcomp(&regex, regex_string.c_str(), REG_EXTENDED)) {
-    LOG(ERROR) << "Failed to compile regex";
-    return true;  // It is better to assume hpk update supported in this case.
-                  // It will fail soon enough if it is not.
-  }
-
-  if (regexec(&regex, version_str.c_str(), kMaxGroups, groups, 0)) {
-    LOG(ERROR) << "Failed to execute regex";
-    return true;  // It is better to assume hpk update supported in this case.
-                  // It will fail soon enough if it is not.
-  }
-
-  std::vector<uint32_t> version;
-  for (auto i = 1; i < kMaxGroups; i++) {
-    int start = groups[i].rm_so;
-    int end = groups[i].rm_eo;
-    version.push_back(std::stoul(version_str.substr(start, end - start)));
-  }
-
   const std::vector<uint32_t> kMinimumSupportedVersion{1, 2, 0};
-  if (VersionCompare(version, kMinimumSupportedVersion) < 0) {
+  if (VersionCompare(camera_info_.firmware_version_numeric,
+                     kMinimumSupportedVersion) < 0) {
     return false;
   }
 
@@ -368,7 +345,8 @@ bool HpkUpdater::Connect() {
 }
 
 bool HpkUpdater::GetCameraInformation(CameraInformation* info) {
-  if (!GetFirmwareVersion(&info->firmware_version)) {
+  if (!GetFirmwareVersion(&info->firmware_version,
+                          &info->firmware_version_numeric)) {
     LOG(ERROR) << "Failed to get camera version info";
     return false;
   }
@@ -545,7 +523,10 @@ bool HpkUpdater::DisableAutozoom() {
   return true;
 }
 
-bool HpkUpdater::GetFirmwareVersion(std::string* version) {
+bool HpkUpdater::GetFirmwareVersion(std::string* version,
+                                    std::vector<uint32_t>* version_numeric) {
+  *version_numeric = {0, 0, 0};  // Default, in case version readout fails.
+
   std::vector<uint8_t> product_info_msgpack;
   if (!GetProductInfo(&product_info_msgpack)) {
     return false;
@@ -566,6 +547,38 @@ bool HpkUpdater::GetFirmwareVersion(std::string* version) {
     LOG(ERROR) << "Could not find firmwave version";
     return false;
   }
+
+  messagepack::Map build_data;
+  if (!product_info.GetValue<messagepack::Map>("build_data", &build_data)) {
+    LOG(ERROR) << "Failed to read build data";
+    return false;
+  }
+  messagepack::Array version_array;
+  if (!build_data.GetValue<messagepack::Array>("version", &version_array)) {
+    LOG(ERROR) << "Failed to get firmware version as array";
+    return false;
+  }
+  const auto kVersionLength = 3;
+  if (version_array.Size() < kVersionLength) {
+    LOG(ERROR) << "Version has wrong format";
+    return false;
+  }
+  LOG(INFO) << version_array.ToString();
+  std::vector<int64_t> values;
+  if (!version_array.GetValuesAs<int64_t>(&values)) {
+    LOG(ERROR) << "Could not get version as array of signed integers";
+    return false;
+  }
+  std::vector<uint32_t> temp_version_numeric;
+  for (const auto v : values) {
+    if (v < 0 || v > std::numeric_limits<uint32_t>::max()) {
+      LOG(ERROR) << "Numeric version element with value" << v
+                 << " out of range";
+      return false;
+    }
+    temp_version_numeric.push_back(v);
+  }
+  *version_numeric = temp_version_numeric;
 
   return true;
 }

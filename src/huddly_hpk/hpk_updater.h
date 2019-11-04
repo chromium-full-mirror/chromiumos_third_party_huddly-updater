@@ -18,6 +18,7 @@ namespace huddly {
 
 struct CameraInformation {
   std::string firmware_version;
+  std::vector<uint32_t> firmware_version_numeric;
   std::string ram_boot_selector;
   std::string boot_decision;
   std::string camera_mode;
@@ -40,7 +41,8 @@ class HpkUpdater {
   bool Reboot(bool wait_for_detach);
   bool RebootAndReattach();
   bool HpkUpdateSupported();
-  bool GetFirmwareVersion(std::string* version);
+  bool GetFirmwareVersion(std::string* version,
+                          std::vector<uint32_t>* version_numeric);
 
  private:
   HpkUpdater(uint16_t usb_vendor_id,
