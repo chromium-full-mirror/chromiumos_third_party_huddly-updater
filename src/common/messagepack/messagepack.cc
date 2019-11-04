@@ -17,7 +17,7 @@
 namespace huddly {
 namespace messagepack {
 
-constexpr int kObjectPrintBufferSize = 1024;
+constexpr int kObjectPrintBufferSize = 100 * 1024;
 
 Object::Object() {
   object_.type = MSGPACK_OBJECT_NIL;
@@ -67,6 +67,11 @@ bool Object::Is<Map>() const {
 template <>
 bool Object::Is<Array>() const {
   return object_.type == MSGPACK_OBJECT_ARRAY;
+}
+
+template <>
+bool Object::Is<Bin>() const {
+  return object_.type == MSGPACK_OBJECT_BIN;
 }
 
 template <>
@@ -123,6 +128,14 @@ bool Object::Get<Array>(Array* out) const {
   if (!Is<Array>())
     return false;
   *out = Array(object_.via.array);
+  return true;
+}
+
+template <>
+bool Object::Get<Bin>(Bin* out) const {
+  if (!Is<Bin>())
+    return false;
+  *out = Bin(object_.via.bin);
   return true;
 }
 
@@ -246,6 +259,35 @@ std::string Object::ToString() const {
   return out;
 }
 
+std::string Object::TypeName() const {
+  switch (object_.type) {
+    case MSGPACK_OBJECT_NIL:
+      return "Nil";
+    case MSGPACK_OBJECT_BOOLEAN:
+      return "Boolean";
+    case MSGPACK_OBJECT_POSITIVE_INTEGER:
+      return "Int";
+    case MSGPACK_OBJECT_NEGATIVE_INTEGER:
+      return "Uint";
+    case MSGPACK_OBJECT_FLOAT32:
+      return "Float32";
+    case MSGPACK_OBJECT_FLOAT64:
+      return "Float64";
+    case MSGPACK_OBJECT_STR:
+      return "String";
+    case MSGPACK_OBJECT_ARRAY:
+      return "Array";
+    case MSGPACK_OBJECT_MAP:
+      return "Map";
+    case MSGPACK_OBJECT_BIN:
+      return "Bin";
+    case MSGPACK_OBJECT_EXT:
+      return "Object ext";
+    default:
+      return "Unknown type";
+  }
+}
+
 Map::Map() {
   map_.size = 0;
   map_.ptr = nullptr;
@@ -311,6 +353,22 @@ std::string Array::ToString() const {
   msgpack_object obj;
   obj.type = MSGPACK_OBJECT_ARRAY;
   obj.via.array = array_;
+  return Object(obj).ToString();
+}
+
+Bin::Bin() {
+  bin_.size = 0;
+  bin_.ptr = nullptr;
+}
+
+int Bin::Size() const {
+  return bin_.size;
+}
+
+std::string Bin::ToString() const {
+  msgpack_object obj;
+  obj.type = MSGPACK_OBJECT_BIN;
+  obj.via.bin = bin_;
   return Object(obj).ToString();
 }
 

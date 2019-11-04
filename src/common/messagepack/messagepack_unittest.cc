@@ -17,7 +17,7 @@ void PackString(msgpack::packer<msgpack::sbuffer>* packer,
 }
 
 class MessagePackTest : public ::testing::Test {
-protected:
+ protected:
   void PackTestMap() {
     msgpack::sbuffer sbuf;
     msgpack::packer<msgpack::sbuffer> packer(sbuf);
@@ -103,6 +103,20 @@ protected:
     array_packed_ = std::vector<uint8_t>(data_begin, data_end);
   }
 
+  void PackTestBin(const std::vector<uint8_t> values,
+                   std::vector<uint8_t>* packed) {
+    msgpack::sbuffer sbuf;
+    msgpack::packer<msgpack::sbuffer> packer(sbuf);
+
+    packer.pack_bin(values.size());
+    packer.pack_bin_body(reinterpret_cast<const char*>(values.data()),
+                         values.size());
+
+    uint8_t* data_begin = reinterpret_cast<uint8_t*>(sbuf.data());
+    auto data_end = data_begin + sbuf.size();
+    *packed = std::vector<uint8_t>(data_begin, data_end);
+  }
+
   void SetUp() override {
     PackTestMap();
     PackTestInt64();
@@ -110,6 +124,8 @@ protected:
     PackTestDouble();
     PackTestString();
     PackTestArray();
+    PackTestBin(kBinValues_, &bin_packed_);
+    PackTestBin({}, &bin_packed_empty_);
   }
 
   std::vector<uint8_t> map_packed_;
@@ -130,6 +146,9 @@ protected:
   const std::string kStringValue_{"test"};
   const std::vector<int64_t> kArrayValues_{1, 100, -100};
   std::vector<uint8_t> array_packed_;
+  const std::vector<uint8_t> kBinValues_{42, 128, 81, 255, 0};
+  std::vector<uint8_t> bin_packed_;
+  std::vector<uint8_t> bin_packed_empty_;
 };  // namespace
 
 TEST_F(MessagePackTest, CreateUnpackerEmptyPackedReturnsNullptr) {
@@ -241,6 +260,7 @@ TEST_F(MessagePackTest, ObjectSignedInt) {
   EXPECT_FALSE(object.Is<std::string>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Array>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Bin>());
 
   int64_t value;
   EXPECT_TRUE(object.Get<int64_t>(&value));
@@ -270,6 +290,7 @@ TEST_F(MessagePackTest, ObjectUnsignedInt) {
   EXPECT_FALSE(object.Is<std::string>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Array>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Bin>());
 
   uint64_t value;
   EXPECT_TRUE(object.Get<uint64_t>(&value));
@@ -296,6 +317,7 @@ TEST_F(MessagePackTest, ObjectUnsignedFixedInt) {
   EXPECT_FALSE(object.Is<std::string>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Array>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Bin>());
 
   uint64_t value;
   EXPECT_TRUE(object.Get<uint64_t>(&value));
@@ -321,6 +343,7 @@ TEST_F(MessagePackTest, ObjectUnsignedDouble) {
   EXPECT_FALSE(object.Is<std::string>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Array>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Bin>());
 
   double value = 0.0;
   EXPECT_TRUE(object.Get<double>(&value));
@@ -348,6 +371,7 @@ TEST_F(MessagePackTest, ObjectString) {
   EXPECT_TRUE(object.Is<std::string>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Array>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Bin>());
 
   std::string value;
   EXPECT_TRUE(object.Get<std::string>(&value));
@@ -378,6 +402,7 @@ TEST_F(MessagePackTest, Map) {
   EXPECT_FALSE(root_object.Is<std::string>());
   EXPECT_TRUE(root_object.Is<huddly::messagepack::Map>());
   EXPECT_FALSE(root_object.Is<huddly::messagepack::Array>());
+  EXPECT_FALSE(root_object.Is<huddly::messagepack::Bin>());
 
   huddly::messagepack::Map map;
 
@@ -431,6 +456,7 @@ TEST_F(MessagePackTest, Array) {
   EXPECT_FALSE(object.Is<std::string>());
   EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
   EXPECT_TRUE(object.Is<huddly::messagepack::Array>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Bin>());
 
   huddly::messagepack::Array array;
 
@@ -455,4 +481,68 @@ TEST_F(MessagePackTest, Array) {
   EXPECT_TRUE(array.GetValuesAs<double>(&double_array));
 }
 
+TEST_F(MessagePackTest, BinDefaultConstructed) {
+  huddly::messagepack::Bin bin;
+
+  // Make sure it is safe to access default constructed array.
+  EXPECT_EQ(0, bin.Size());
+  std::vector<huddly::messagepack::Object> objects;
+  std::vector<uint8_t> bytes;
+  EXPECT_TRUE(bin.GetValues(&bytes));
+  EXPECT_EQ(0, objects.size());
+}
+
+TEST_F(MessagePackTest, Bin) {
+  const auto unpacker = huddly::messagepack::Unpacker::Create(bin_packed_);
+  ASSERT_NE(nullptr, unpacker);
+
+  const auto object = unpacker->GetRootObject();
+  EXPECT_FALSE(object.IsNil());
+  EXPECT_FALSE(object.Is<bool>());
+  EXPECT_FALSE(object.Is<double>());
+  EXPECT_FALSE(object.Is<int64_t>());
+  EXPECT_FALSE(object.Is<std::string>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Array>());
+  EXPECT_TRUE(object.Is<huddly::messagepack::Bin>());
+
+  huddly::messagepack::Bin bin;
+
+  EXPECT_TRUE(object.Get<huddly::messagepack::Bin>(&bin));
+  EXPECT_EQ(kBinValues_.size(), bin.Size());
+
+  EXPECT_TRUE(object.GetAs<huddly::messagepack::Bin>(&bin));
+  EXPECT_EQ(kBinValues_.size(), bin.Size());
+
+  std::vector<uint8_t> values;
+
+  EXPECT_TRUE(bin.GetValues(&values));
+  EXPECT_EQ(kBinValues_, values);
+}
+
+TEST_F(MessagePackTest, BinEmpty) {
+  const auto unpacker =
+      huddly::messagepack::Unpacker::Create(bin_packed_empty_);
+  ASSERT_NE(nullptr, unpacker);
+
+  const auto object = unpacker->GetRootObject();
+  EXPECT_FALSE(object.IsNil());
+  EXPECT_FALSE(object.Is<bool>());
+  EXPECT_FALSE(object.Is<double>());
+  EXPECT_FALSE(object.Is<int64_t>());
+  EXPECT_FALSE(object.Is<std::string>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Map>());
+  EXPECT_FALSE(object.Is<huddly::messagepack::Array>());
+  EXPECT_TRUE(object.Is<huddly::messagepack::Bin>());
+
+  huddly::messagepack::Bin bin;
+
+  EXPECT_TRUE(object.Get<huddly::messagepack::Bin>(&bin));
+  EXPECT_EQ(0, bin.Size());
+
+  std::vector<uint8_t> values;
+
+  EXPECT_TRUE(bin.GetValues(&values));
+  EXPECT_EQ(std::vector<uint8_t>{}, values);
+}
 }  // namespace

@@ -18,6 +18,7 @@ namespace messagepack {
 
 class Map;
 class Array;
+class Bin;
 
 class Object {
  public:
@@ -52,6 +53,7 @@ class Object {
 
   // Convenience function
   std::string ToString() const;
+  std::string TypeName() const;
 
  private:
   msgpack_object object_;
@@ -71,6 +73,8 @@ template <>
 bool Object::Is<Map>() const;
 template <>
 bool Object::Is<Array>() const;
+template <>
+bool Object::Is<Bin>() const;
 
 template <>
 bool Object::Get<bool>(bool* out) const;
@@ -86,6 +90,8 @@ template <>
 bool Object::Get<Map>(Map* out) const;
 template <>
 bool Object::Get<Array>(Array* out) const;
+template <>
+bool Object::Get<Bin>(Bin* out) const;
 
 template <>
 bool Object::GetAs<int64_t>(int64_t* out) const;
@@ -165,6 +171,25 @@ class Array {
 
  private:
   msgpack_object_array array_;
+};
+
+class Bin {
+ public:
+  Bin();
+  explicit Bin(const msgpack_object_bin& bin) : bin_(bin) {}
+  int Size() const;
+
+  bool GetValues(std::vector<uint8_t>* out) const {
+    for (auto i = 0u; i < Size(); i++) {
+      out->push_back(reinterpret_cast<const uint8_t*>(bin_.ptr)[i]);
+    }
+    return true;
+  }
+
+  std::string ToString() const;
+
+ private:
+  msgpack_object_bin bin_;
 };
 
 // The unpacker will keep a copy of the packed messagepack data. However,
