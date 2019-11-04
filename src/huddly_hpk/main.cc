@@ -61,6 +61,8 @@ int main(int argc, char* argv[]) {
     return (updater->Reboot(true) ? EXIT_SUCCESS : EXIT_FAILURE);
   }
 
+  LOG(INFO) << "Reset cause: " << updater->GetResetCause();
+
   if (FLAGS_read_error_log) {
     LOG(INFO) << "Reading error log";
     std::string error_log;

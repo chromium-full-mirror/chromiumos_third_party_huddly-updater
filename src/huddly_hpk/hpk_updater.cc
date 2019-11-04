@@ -388,6 +388,12 @@ bool HpkUpdater::GetCameraInformation(CameraInformation* info) {
   product_info.GetValueAs<std::string>(kCameraModeKey, &info->camera_mode);
   product_info.GetValueAs<bool>(kAutozoomEnableKey, &info->autozoom_enabled);
 
+  if (!product_info.GetValueAs<std::string>(kResetCauseKey,
+                                            &info->reset_cause)) {
+    LOG(WARNING) << "Failed to get reset cause";
+    info->reset_cause = "Unknown";
+  }
+
   return true;
 }
 
@@ -580,6 +586,10 @@ bool HpkUpdater::GetFirmwareVersion(std::string* version,
   return true;
 }
 
+std::string HpkUpdater::GetResetCause() {
+  return camera_info_.reset_cause;
+}
+
 bool HpkUpdater::ReadErrorLog(std::string* log) {
   if (!ErrorLogReadSupported()) {
     LOG(ERROR) << "Error log operations not supported on this version";
@@ -644,6 +654,8 @@ bool HpkUpdater::ReadErrorLog(std::string* log) {
   std::copy_if(std::cbegin(as_vector), std::cend(as_vector),
                std::back_inserter(*log),
                [](const uint8_t c) { return c != '\0'; });
+
+  *log = StripAnsiColorCodes(*log);
 
   return true;
 }

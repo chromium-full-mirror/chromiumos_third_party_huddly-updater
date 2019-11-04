@@ -23,11 +23,13 @@ struct CameraInformation {
   std::string ram_boot_selector;
   std::string boot_decision;
   std::string camera_mode;
+  std::string reset_cause;
   bool autozoom_enabled;
 };
 
 const std::string kCameraModeKey("camera-mode");
 const std::string kAutozoomEnableKey("autozoom_enabled");
+const std::string kResetCauseKey("reset_cause");
 
 class HpkUpdater {
  public:
@@ -45,6 +47,7 @@ class HpkUpdater {
   bool ErrorLogReadSupported();
   bool GetFirmwareVersion(std::string* version,
                           NumericVersion* version_numeric);
+  std::string GetResetCause();
   bool ReadErrorLog(std::string* log);
   bool EraseErrorLog();
 
