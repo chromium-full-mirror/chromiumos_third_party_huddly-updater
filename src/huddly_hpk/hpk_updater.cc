@@ -9,8 +9,10 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <iterator>
 #include <utility>
 
+#include <base/time/time.h>
 #include <cfm-dfu-notification/idfu_notification.h>
 
 #include "../common/messagepack/messagepack.h"
@@ -216,25 +218,21 @@ bool HpkUpdater::RebootAndReattach() {
   return true;
 }
 
-// For Huddly IQ, the hpk-updater is not supported for firmware versions
-// before 1.2.0.
-bool HpkUpdater::HpkUpdateSupported() {
-  // This limitation is only valid for Huddly IQ. Make sure we are indeed
-  // attempting to update a Huddly IQ.
-  std::string& version_str = camera_info_.firmware_version;
-
+static bool FirmwareIsHuddlyIQ(const std::string& version_str) {
   const std::string kProductIdentifier("HuddlyIQ");
-  if (version_str.find(kProductIdentifier) == std::string::npos) {
-    return true;
-  }
+  return (version_str.find(kProductIdentifier) != std::string::npos);
+}
 
-  const std::vector<uint32_t> kMinimumSupportedVersion{1, 2, 0};
-  if (VersionCompare(camera_info_.firmware_version_numeric,
-                     kMinimumSupportedVersion) < 0) {
-    return false;
-  }
+bool HpkUpdater::HpkUpdateSupported() {
+  // Only Huddly IQ, firmware versions 1.2.0 and later is supported.
+  return (FirmwareIsHuddlyIQ(camera_info_.firmware_version) &&
+          camera_info_.firmware_version_numeric >= NumericVersion({1, 2, 0}));
+}
 
-  return true;
+bool HpkUpdater::ErrorLogReadSupported() {
+  // Only Huddly IQ, firmware versions 1.3.14 and later is supported.
+  return (FirmwareIsHuddlyIQ(camera_info_.firmware_version) &&
+          camera_info_.firmware_version_numeric >= NumericVersion({1, 3, 14}));
 }
 
 bool HpkUpdater::ConfigureCamera(const std::string& configuration) {
@@ -524,8 +522,8 @@ bool HpkUpdater::DisableAutozoom() {
 }
 
 bool HpkUpdater::GetFirmwareVersion(std::string* version,
-                                    std::vector<uint32_t>* version_numeric) {
-  *version_numeric = {0, 0, 0};  // Default, in case version readout fails.
+                                    NumericVersion* version_numeric) {
+  *version_numeric = NumericVersion{};
 
   std::vector<uint8_t> product_info_msgpack;
   if (!GetProductInfo(&product_info_msgpack)) {
@@ -563,7 +561,6 @@ bool HpkUpdater::GetFirmwareVersion(std::string* version,
     LOG(ERROR) << "Version has wrong format";
     return false;
   }
-  LOG(INFO) << version_array.ToString();
   std::vector<int64_t> values;
   if (!version_array.GetValuesAs<int64_t>(&values)) {
     LOG(ERROR) << "Could not get version as array of signed integers";
@@ -578,7 +575,140 @@ bool HpkUpdater::GetFirmwareVersion(std::string* version,
     }
     temp_version_numeric.push_back(v);
   }
-  *version_numeric = temp_version_numeric;
+  *version_numeric = NumericVersion(temp_version_numeric);
+
+  return true;
+}
+
+bool HpkUpdater::ReadErrorLog(std::string* log) {
+  if (!ErrorLogReadSupported()) {
+    LOG(ERROR) << "Error log operations not supported on this version";
+    return false;
+  }
+
+  const std::string kCommand("error_logger/read_simple");
+  const std::string kSubscription(kCommand + "_reply");
+  const auto scoped_subscription =
+      message_bus::ScopedSubscribe::Create(hlink_.get(), kSubscription);
+  if (!scoped_subscription) {
+    LOG(ERROR) << "Failed to subscribe to " << kSubscription;
+    return false;
+  }
+
+  if (!hlink_->Send(kCommand, nullptr, 0)) {
+    LOG(ERROR) << "Failed to send '" << kCommand << "' command";
+    return false;
+  }
+
+  huddly::HLinkBuffer hl_buffer;
+  if (!hlink_->Receive(&hl_buffer)) {
+    LOG(ERROR) << "Failed to receive packet";
+    return false;
+  }
+
+  auto unpacker = messagepack::Unpacker::Create(hl_buffer.GetPayload());
+  if (!unpacker) {
+    LOG(ERROR) << "Unable to decode status message";
+    return false;
+  }
+
+  messagepack::Map error_log;
+  if (!unpacker->GetRoot<messagepack::Map>(&error_log)) {
+    LOG(ERROR) << "Failed to get upgrader status as map.";
+    return false;
+  }
+
+  int64_t status;
+  if (!error_log.GetValueAs<int64_t>("error", &status)) {
+    LOG(ERROR) << "Read error log failed. No 'error' field in map";
+    return false;
+  }
+
+  if (status != 0) {
+    LOG(ERROR) << "Read error log failed on device. Status code: " << status;
+    return false;
+  }
+
+  messagepack::Bin bin;
+  if (!error_log.GetValue<messagepack::Bin>("log", &bin)) {
+    LOG(ERROR) << "Read error log failed. No 'log' field in map";
+    return false;
+  }
+  std::vector<uint8_t> as_vector;
+  if (!bin.GetValues(&as_vector)) {
+    LOG(ERROR) << "Failed to get error log data as byte array";
+    return false;
+  }
+
+  // Copy to string, but remove '\0' characters.
+  std::copy_if(std::cbegin(as_vector), std::cend(as_vector),
+               std::back_inserter(*log),
+               [](const uint8_t c) { return c != '\0'; });
+
+  return true;
+}
+
+bool HpkUpdater::EraseErrorLog() {
+  if (!ErrorLogReadSupported()) {
+    LOG(ERROR) << "Error log operations not supported on this version";
+    return false;
+  }
+
+  const std::string kCommand("error_logger/erase");
+
+  const std::string kStartedSubscription(kCommand + "_started");
+  const auto started_scoped_subscription =
+      message_bus::ScopedSubscribe::Create(hlink_.get(), kStartedSubscription);
+  if (!started_scoped_subscription) {
+    LOG(ERROR) << "Failed to subscribe to " << kStartedSubscription;
+    return false;
+  }
+
+  const std::string kDoneSubscription(kCommand + "_done");
+  const auto done_scoped_subscription =
+      message_bus::ScopedSubscribe::Create(hlink_.get(), kDoneSubscription);
+  if (!done_scoped_subscription) {
+    LOG(ERROR) << "Failed to subscribe to " << kDoneSubscription;
+    return false;
+  }
+
+  if (!hlink_->Send(kCommand, nullptr, 0)) {
+    LOG(ERROR) << "Failed to send '" << kCommand << "' command";
+    return false;
+  }
+
+  const auto timeout_ms = 30'000;
+  const auto start = base::TimeTicks::Now();
+  bool erase_done = false;
+  while (!erase_done) {
+    huddly::HLinkBuffer hl_buffer;
+    if (!hlink_->Receive(&hl_buffer)) {
+      LOG(ERROR) << "Failed to receive error log status packet";
+      return false;
+    }
+
+    const auto message_name = hl_buffer.GetMessageName();
+    if (message_name == kStartedSubscription) {
+      VLOG(1) << "Error log erase started";
+    }
+    if (message_name == kDoneSubscription) {
+      VLOG(1) << "Error log erase done";
+      // This message simply contains a 32 bit int as status value. No need to
+      // unpack as messagepack.
+      const auto status =
+          *reinterpret_cast<const int32_t*>(hl_buffer.GetPayload().data());
+      if (status != 0) {
+        LOG(WARNING) << "Error log erase failed";
+        return false;
+      }
+      erase_done = true;
+    }
+
+    if ((base::TimeTicks::Now() - start).InMilliseconds() > timeout_ms) {
+      LOG(ERROR) << "Error log erase timed out after " << timeout_ms << "ms.";
+      return false;
+    }
+  }
 
   return true;
 }

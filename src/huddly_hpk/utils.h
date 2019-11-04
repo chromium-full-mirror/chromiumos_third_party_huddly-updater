@@ -7,15 +7,45 @@
 
 #include <cstdint>
 #include <string>
+#include <ostream>
 #include <vector>
 
 namespace huddly {
 
+class NumericVersion {
+ public:
+  NumericVersion();
+  NumericVersion(const NumericVersion&) = default;
+  NumericVersion(NumericVersion&&) = default;
+  NumericVersion& operator=(const NumericVersion&) = default;
+  NumericVersion& operator=(NumericVersion&&) = default;
+  explicit NumericVersion(std::vector<uint32_t> version);
+
+  friend bool operator==(const NumericVersion& lhs, const NumericVersion& rhs);
+  friend bool operator!=(const NumericVersion& lhs, const NumericVersion& rhs);
+  friend bool operator<(const NumericVersion& lhs, const NumericVersion& rhs);
+  friend bool operator>(const NumericVersion& lhs, const NumericVersion& rhs);
+  friend bool operator<=(const NumericVersion& lhs, const NumericVersion& rhs);
+  friend bool operator>=(const NumericVersion& lhs, const NumericVersion& rhs);
+  friend std::ostream& operator<<(std::ostream& os,
+                                  const NumericVersion& version);
+
+ private:
+  static const int kVersionLength = 3;
+  std::vector<uint32_t> version_;
+};
+
+bool operator==(const NumericVersion& lhs, const NumericVersion& rhs);
+bool operator!=(const NumericVersion& lhs, const NumericVersion& rhs);
+bool operator<(const NumericVersion& lhs, const NumericVersion& rhs);
+bool operator>(const NumericVersion& lhs, const NumericVersion& rhs);
+bool operator<=(const NumericVersion& lhs, const NumericVersion& rhs);
+bool operator>=(const NumericVersion& lhs, const NumericVersion& rhs);
+std::ostream& operator<<(std::ostream& os, const NumericVersion& version);
+
 std::string Uint8ToHexString(uint8_t value);
 std::string Uint16ToHexString(uint16_t value);
 std::string UsbVidPidString(uint16_t vid, uint16_t pid);
-int VersionCompare(const std::vector<uint32_t>& v1,
-                   const std::vector<uint32_t>& v2);
 
 }  // namespace huddly
 
