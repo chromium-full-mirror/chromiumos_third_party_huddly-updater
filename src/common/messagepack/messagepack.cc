@@ -239,8 +239,8 @@ bool Object::GetAs<std::string>(std::string* out) const {
   char buffer[kObjectPrintBufferSize];
   int string_length =
       msgpack_object_print_buffer(buffer, sizeof(buffer), object_);
-  if (string_length >= sizeof(buffer)) {
-    LOG(ERROR) << "Buffer is too short to print object";
+  if (string_length <= 0 || string_length >= sizeof(buffer)) {
+    LOG(ERROR) << "Failed to convert object to string";
     return false;
   }
   if (string_length < 0) {
