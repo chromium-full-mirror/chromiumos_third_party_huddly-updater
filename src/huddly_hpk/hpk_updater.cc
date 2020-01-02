@@ -10,6 +10,9 @@
 #include <algorithm>
 #include <utility>
 
+#include <base/json/json_writer.h>
+#include <base/values.h>
+
 #include "../common/messagepack/messagepack.h"
 #include "hcp.h"
 #include "message_bus.h"
@@ -19,9 +22,14 @@
 namespace huddly {
 
 constexpr auto kDeviceWaitTimeoutMillisec = 30000;
+const uint32_t kUpdateTimeoutSeconds = 480;
 constexpr uint8_t kVideoInterfaceClass = 0x0e;
 constexpr uint8_t kAudioInterfaceClass = 0x01;
 constexpr uint8_t kControlInterfaceSubClass = 0x01;
+const char kNameParameter[] = "name";
+const char kSuccessParameter[] = "success";
+const char kTimeoutSecondsParameter[] = "timeout_s";
+const char kPercentDoneParameter[] = "percent_done";
 
 std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
                                                uint16_t usb_product_id,
@@ -60,6 +68,48 @@ enum class UpdateAction {
   kRunVerification,
   kUnknown
 };
+
+static void LogStartUpdate() {
+  base::DictionaryValue start_parameters;
+  start_parameters.SetString(kNameParameter, "Huddly IQ");
+  start_parameters.SetInteger(kTimeoutSecondsParameter, kUpdateTimeoutSeconds);
+
+  std::string start_parameters_json;
+  if (base::JSONWriter::Write(start_parameters, &start_parameters_json)) {
+    LOG(INFO) << "$#StartUpdate$#" << start_parameters_json;
+  } else {
+    LOG(ERROR) << "Unable to write start update for Huddly IQ. Partial output:"
+        << start_parameters_json;
+  }
+}
+
+static void LogEndUpdate(bool success) {
+  base::DictionaryValue end_parameters;
+  end_parameters.SetString(kNameParameter, "Huddly IQ");
+  end_parameters.SetBoolean(kSuccessParameter, success);
+
+  std::string end_parameters_json;
+  if (base::JSONWriter::Write(end_parameters, &end_parameters_json)) {
+    LOG(INFO) << "$#EndUpdate$#" << end_parameters_json;
+  } else {
+    LOG(ERROR) << "Unable to write end update for Huddly IQ. Partial output"
+        << end_parameters_json;
+  }
+}
+
+static void LogUpdateProgress(double percent_done) {
+  base::DictionaryValue update_parameters;
+  update_parameters.SetString(kNameParameter, "Huddly IQ");
+  update_parameters.SetDouble(kPercentDoneParameter, percent_done);
+
+  std::string update_parameters_json;
+  if (base::JSONWriter::Write(update_parameters, &update_parameters_json)) {
+    LOG(INFO) << "$#UpdateProgress$#" << update_parameters_json;
+  } else {
+    LOG(ERROR) << "Unable to write progress for Huddly IQ. Partial output:"
+        << update_parameters_json;
+  }
+}
 
 static UpdateAction DetermineUpdateAction(const CameraInformation& camera_info,
                                           const HpkFile& hpk_file,
@@ -128,17 +178,23 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
     if (action == UpdateAction::kNoUpdateNeeded) {
       if (!ConfigureCamera(configuration)) {
         LOG(ERROR) << "Failed to configure camera";
+        LogEndUpdate(false);
         return false;
       }
       return true;
     }
 
+    // This means that either an update or verification is needed.
+    // The update notification will restart after each pass.
+    LogStartUpdate();
     bool reboot_requested;
     if (!DoSingleUpdatePass(*hpk_file, &reboot_requested)) {
+      LogEndUpdate(false);
       return false;
     }
 
     if (action == UpdateAction::kRunUpdate && !reboot_requested) {
+      LogEndUpdate(false);
       LOG(ERROR)
           << "Expected reboot request after update pass, but none received";
       return false;
@@ -146,6 +202,7 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
 
     if (action == UpdateAction::kRunVerification && reboot_requested) {
       LOG(ERROR) << "Unexpected reboot requested after verification pass";
+      LogEndUpdate(false);
       return false;
     }
 
@@ -156,21 +213,25 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
         // older kernel versions.
         if (!Reboot(false)) {
           LOG(ERROR) << "Failed to reboot";
+          LogEndUpdate(false);
           return false;
         }
       } else {
         if (!RebootAndReattach()) {
           LOG(ERROR) << "Failed to reboot";
+          LogEndUpdate(false);
           return false;
         }
       }
     }
+    LogEndUpdate(true);
   }
 
   if (action == UpdateAction::kRunVerification) {
     LOG(INFO) << "Update finished successfully";
     if (!ConfigureCamera(configuration)) {
       LOG(ERROR) << "Failed to configure camera";
+      LogEndUpdate(false);
       return false;
     }
   }
@@ -590,6 +651,7 @@ class UpgradeStatusHandler {
 
     double elapsed_percentage = 100.0 * elapsed_points_ / total_points_;
     if (elapsed_percentage - previous_reported_elapsed_percentage_ >= 5.0) {
+      LogUpdateProgress(std::round(elapsed_percentage));
       LOG(INFO) << "Progress: " << std::round(elapsed_percentage) << "%";
       previous_reported_elapsed_percentage_ = elapsed_percentage;
     }
