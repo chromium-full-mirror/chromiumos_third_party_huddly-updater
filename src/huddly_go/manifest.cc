@@ -34,10 +34,10 @@ bool Manifest::ParseFile() {
   // Note: |root_dic| is valid only during |root| is alive.
 #ifdef __ANDROID__
   scoped_ptr<base::Value> root =
-      base::JSONReader().Read(content, base::JSON_DETACHABLE_CHILDREN);
+      base::JSONReader().Read(content, base::JSON_PARSE_RFC);
 #else
   std::unique_ptr<base::Value> root =
-      base::JSONReader().Read(content, base::JSON_DETACHABLE_CHILDREN);
+      base::JSONReader().Read(content, base::JSON_PARSE_RFC);
 #endif
 
   if (!root) {

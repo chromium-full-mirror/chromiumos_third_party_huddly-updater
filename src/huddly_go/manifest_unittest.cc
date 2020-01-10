@@ -37,7 +37,7 @@ TEST_F(ManifestTest, ReadJSONDictionary) {
   ASSERT_TRUE(ReadFileToString(manifest.path(), &content));
 
   std::unique_ptr<base::Value> root =
-      base::JSONReader().Read(content, base::JSON_DETACHABLE_CHILDREN);
+      base::JSONReader().Read(content, base::JSON_PARSE_RFC);
   ASSERT_TRUE(root) << base::JSONReader().GetErrorMessage();
   base::DictionaryValue* root_dic;
   EXPECT_TRUE(root->GetAsDictionary(&root_dic));
