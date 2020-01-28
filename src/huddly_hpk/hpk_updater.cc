@@ -8,7 +8,10 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <memory>
 #include <utility>
+
+#include <cfm-dfu-notification/idfu_notification.h>
 
 #include "../common/messagepack/messagepack.h"
 #include "hcp.h"
@@ -19,9 +22,11 @@
 namespace huddly {
 
 constexpr auto kDeviceWaitTimeoutMillisec = 30000;
+const uint32_t kUpdateTimeoutSeconds = 480;
 constexpr uint8_t kVideoInterfaceClass = 0x0e;
 constexpr uint8_t kAudioInterfaceClass = 0x01;
 constexpr uint8_t kControlInterfaceSubClass = 0x01;
+constexpr char kCameraName[] = "Huddly IQ";
 
 std::unique_ptr<HpkUpdater> HpkUpdater::Create(uint16_t usb_vendor_id,
                                                uint16_t usb_product_id,
@@ -133,12 +138,20 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
       return true;
     }
 
+    // This means that either an update or verification is needed.
+    // The update notification will restart after each pass.
+    std::unique_ptr<IDfuNotification> dfu_notification =
+        IDfuNotification::For(kCameraName);
+    dfu_notification->NotifyStartUpdate(kUpdateTimeoutSeconds);
+
     bool reboot_requested;
     if (!DoSingleUpdatePass(*hpk_file, &reboot_requested)) {
+      dfu_notification->NotifyEndUpdate(false);
       return false;
     }
 
     if (action == UpdateAction::kRunUpdate && !reboot_requested) {
+      dfu_notification->NotifyEndUpdate(false);
       LOG(ERROR)
           << "Expected reboot request after update pass, but none received";
       return false;
@@ -146,6 +159,7 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
 
     if (action == UpdateAction::kRunVerification && reboot_requested) {
       LOG(ERROR) << "Unexpected reboot requested after verification pass";
+      dfu_notification->NotifyEndUpdate(false);
       return false;
     }
 
@@ -156,15 +170,18 @@ bool HpkUpdater::DoUpdate(base::FilePath hpk_file_path,
         // older kernel versions.
         if (!Reboot(false)) {
           LOG(ERROR) << "Failed to reboot";
+          dfu_notification->NotifyEndUpdate(false);
           return false;
         }
       } else {
         if (!RebootAndReattach()) {
           LOG(ERROR) << "Failed to reboot";
+          dfu_notification->NotifyEndUpdate(false);
           return false;
         }
       }
     }
+    dfu_notification->NotifyEndUpdate(true);
   }
 
   if (action == UpdateAction::kRunVerification) {
@@ -588,8 +605,12 @@ class UpgradeStatusHandler {
     upgrader_status.GetValueAs<double>("total_points", &total_points_);
     upgrader_status.GetValueAs<double>("elapsed_points", &elapsed_points_);
 
-    double elapsed_percentage = 100.0 * elapsed_points_ / total_points_;
+    std::unique_ptr<IDfuNotification> dfu_notification =
+        IDfuNotification::For(kCameraName);
+    double elapsed_fraction = elapsed_points_ / total_points_;
+    double elapsed_percentage = 100.0 * elapsed_fraction;
     if (elapsed_percentage - previous_reported_elapsed_percentage_ >= 5.0) {
+      dfu_notification->NotifyUpdateProgress(elapsed_fraction);
       LOG(INFO) << "Progress: " << std::round(elapsed_percentage) << "%";
       previous_reported_elapsed_percentage_ = elapsed_percentage;
     }
