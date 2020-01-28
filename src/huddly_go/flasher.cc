@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 #include <base/logging.h>
+#include <cfm-dfu-notification/idfu_notification.h>
 
 #include <iomanip>
 #include <memory>
@@ -20,6 +21,7 @@ namespace {
 std::string BoolToYesNo(bool test) {
   return test ? "Y" : "N";
 }
+const char kHuddlyGoName[] = "Huddly Go";
 
 }  // namespace
 
@@ -108,12 +110,16 @@ bool Flasher::FlashAll(std::string* err_msg) const {
     *err_msg += ".. failed to flash app in minidev setting up";
     return false;
   }
+  std::unique_ptr<IDfuNotification> dfu_notification =
+      IDfuNotification::For(kHuddlyGoName);
+  dfu_notification->NotifyStartUpdate();
 
   if (is_eligible_to_upgrade_boot_) {
     LOG(INFO) << "Upgrading Bootloader: " << pl_bootloader_ver_ << " -> "
               << fw_bootloader_ver_;
     if (!FlashWithFile(firmware_.bootloader_path(), err_msg)) {
       *err_msg += ".. failed to upgrade bootloader";
+      dfu_notification->NotifyEndUpdate(false);
       return false;
     }
   }
@@ -122,14 +128,17 @@ bool Flasher::FlashAll(std::string* err_msg) const {
     LOG(INFO) << "Upgrading App: " << pl_app_ver_ << " -> " << fw_app_ver_;
     if (!FlashWithFile(firmware_.app_path(), err_msg)) {
       *err_msg += ".. failed to upgrade app";
+      dfu_notification->NotifyEndUpdate(false);
       return false;
     }
   }
 
   if (!minidev_->Teardown(err_msg)) {
+    dfu_notification->NotifyEndUpdate(false);
     *err_msg += ".. failed to tear down the minidev Flasher used";
     return false;
   }
+  dfu_notification->NotifyEndUpdate(true);
   return true;
 }
 
