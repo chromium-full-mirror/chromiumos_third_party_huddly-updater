@@ -3,8 +3,6 @@
 // found in the LICENSE file.
 
 #include <base/logging.h>
-#include <base/json/json_writer.h>
-#include <base/values.h>
 #include <brillo/syslog_logging.h>
 #include <getopt.h>
 
@@ -20,11 +18,6 @@
 namespace {
 
 const int kWaitRebootingTimeoutSec = 10;
-const uint16_t kUpdateTimeoutSeconds = 300;
-const char kHuddlyGoName[] = "Huddly Go";
-const char kNameParameter[] = "name";
-const char kSuccessParameter[] = "success";
-const char kTimeoutSecondsParameter[] = "timeout_s";
 
 }  // namespace
 
@@ -54,12 +47,6 @@ bool ConfigCamera();
 
 // Show command line argument options.
 void ShowUsage(const char* program_name);
-
-// Logs the Start of an update session.
-void LogStartUpdate();
-
-// Logs the End of an update session marking it as a success or failure.
-void LogEndUpdate(bool success);
 
 // Parse command line arguments.
 void ParseArgs(int argc, char* argv[], CmdlineFlags* flags);
@@ -151,13 +138,10 @@ int main(int argc, char* argv[]) {
       return EXIT_SUCCESS;
     }
 
-    LogStartUpdate();
-
     if (!SwitchMode(huddly::BootMode::APP, huddly::BootMode::BOOTLOADER,
                     &err_msg)) {
       err_msg += ".. failed to initialize the mode";
       LOG(ERROR) << err_msg;
-      LogEndUpdate(false);
       return EXIT_FAILURE;
     }
   }
@@ -165,7 +149,6 @@ int main(int argc, char* argv[]) {
   if (do_burn) {
     if (!flasher.FlashAll(&err_msg)) {
       err_msg += ".. failed to flash";
-      LogEndUpdate(false);
       LOG(ERROR) << err_msg;
 
       err_msg = "";
@@ -179,7 +162,7 @@ int main(int argc, char* argv[]) {
     }
 
     LOG(INFO) << ".. wrote firmware";
-    LogEndUpdate(true);
+
     if (!SwitchMode(huddly::BootMode::BOOTLOADER, huddly::BootMode::APP,
                     &err_msg)) {
       err_msg += ".. failed to reboot back to APP mode";
@@ -191,34 +174,6 @@ int main(int argc, char* argv[]) {
   }
 
   return EXIT_SUCCESS;
-}
-
-void LogStartUpdate() {
-  base::DictionaryValue start_parameters;
-  start_parameters.SetString(kNameParameter, kHuddlyGoName);
-  start_parameters.SetInteger(kTimeoutSecondsParameter, kUpdateTimeoutSeconds);
-
-  std::string start_parameters_json;
-  if (base::JSONWriter::Write(start_parameters, &start_parameters_json)) {
-    LOG(INFO) << "$#StartUpdate$#" << start_parameters_json;
-  } else {
-    LOG(ERROR) << "Unable to write start update for Huddly Go. Partial output:"
-        << start_parameters_json;
-  }
-}
-
-void LogEndUpdate(bool success) {
-  base::DictionaryValue end_parameters;
-  end_parameters.SetString(kNameParameter, kHuddlyGoName);
-  end_parameters.SetBoolean(kSuccessParameter, success);
-
-  std::string end_parameters_json;
-  if (base::JSONWriter::Write(end_parameters, &end_parameters_json)) {
-    LOG(INFO) << "$#EndUpdate$#" << end_parameters_json;
-  } else {
-    LOG(ERROR) << "Unable to write end update for Huddly Go. Partial output:"
-        << end_parameters_json;
-  }
 }
 
 bool SwitchMode(huddly::BootMode from,
