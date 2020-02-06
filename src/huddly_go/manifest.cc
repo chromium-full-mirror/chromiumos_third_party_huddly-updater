@@ -121,7 +121,7 @@ void Manifest::ParseFirmwareFileVersions(base::DictionaryValue* dic,
 
   for (auto& elem : *files_list) {
     base::DictionaryValue* dic = nullptr;
-    if (!elem->GetAsDictionary(&dic)) {
+    if (!elem.GetAsDictionary(&dic)) {
       std::cout << "failed to parse an files element as dictionary"
                 << "\n";
       continue;
@@ -166,7 +166,7 @@ std::string Manifest::ListToStr(base::ListValue* list_val,
   std::string result = "";
   for (auto& elem : *list_val) {
     int val;
-    if (!elem->GetAsInteger(&val)) {
+    if (!elem.GetAsInteger(&val)) {
       std::cout << "failed to parse value as integer from list value"
                 << "\n";
       continue;
@@ -198,7 +198,7 @@ void Manifest::ParseHardwareRev(base::DictionaryValue* dic,
 
   for (auto& elem : *compatible_hw_list) {
     base::DictionaryValue* compatible_hw_dic = nullptr;
-    if (!elem->GetAsDictionary(&compatible_hw_dic)) {
+    if (!elem.GetAsDictionary(&compatible_hw_dic)) {
       std::cout << "failed to parse 'compatible_hw' element as dictionary"
                 << "\n";
       continue;
