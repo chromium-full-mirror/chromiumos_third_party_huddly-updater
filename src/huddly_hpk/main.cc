@@ -15,6 +15,8 @@ int main(int argc, char* argv[]) {
 
   DEFINE_string(log_to, "syslog", "Path to log file. stdout is legal.");
   DEFINE_bool(reboot, false, "Only reboot device");
+  DEFINE_bool(read_error_log, false, "Only read error log");
+  DEFINE_bool(erase_error_log, false, "Only erase error log");
   DEFINE_string(product_id, "0x0021", "USB product id (hex)");
   DEFINE_string(file_name, "/lib/firmware/huddly/huddly_iq.hpk",
                 "Firmware image file");
@@ -57,6 +59,34 @@ int main(int argc, char* argv[]) {
   if (FLAGS_reboot) {
     LOG(INFO) << "Reboot only requested";
     return (updater->Reboot(true) ? EXIT_SUCCESS : EXIT_FAILURE);
+  }
+
+  if (FLAGS_read_error_log) {
+    LOG(INFO) << "Reading error log";
+    std::string error_log;
+    if (!updater->ReadErrorLog(&error_log)) {
+      LOG(ERROR) << "Failed to read error log";
+      return EXIT_FAILURE;
+    }
+
+    if (error_log.size() > 0) {
+      LOG(INFO) << "Error log: ";
+      LOG(INFO) << error_log;
+    } else {
+      LOG(INFO) << "Error log empty";
+    }
+
+    return EXIT_SUCCESS;
+  }
+
+  if (FLAGS_erase_error_log) {
+    LOG(INFO) << "Erasing error log";
+    if (!updater->EraseErrorLog()) {
+      LOG(ERROR) << "Failed to erase error log";
+      return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
   }
 
   if (!updater->DoUpdate(base::FilePath(FLAGS_file_name), FLAGS_force,
