@@ -7,9 +7,10 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <iterator>
 #include <limits>
 #include <memory>
-#include <iterator>
+#include <sstream>
 #include <utility>
 
 #include <base/time/time.h>
@@ -591,6 +592,7 @@ std::string HpkUpdater::GetResetCause() {
 }
 
 bool HpkUpdater::ReadErrorLog(std::string* log) {
+  log->clear();
   if (!ErrorLogReadSupported()) {
     LOG(ERROR) << "Error log operations not supported on this version";
     return false;
@@ -650,12 +652,20 @@ bool HpkUpdater::ReadErrorLog(std::string* log) {
     return false;
   }
 
+  std::string raw_log;
   // Copy to string, but remove '\0' characters.
   std::copy_if(std::cbegin(as_vector), std::cend(as_vector),
-               std::back_inserter(*log),
+               std::back_inserter(raw_log),
                [](const uint8_t c) { return c != '\0'; });
 
-  *log = StripAnsiColorCodes(*log);
+  // Strip ANSI SGR codes on a line-by line basis to avoid losing parts of
+  // the log if there are incomplete ANSI codes in the middle of the log.
+  std::istringstream iss(raw_log);
+  std::string line;
+  while (getline(iss, line)) {
+    *log += StripAnsiSgrCodes(line) += '\n';
+  }
+  log->pop_back();  // Remove extra '\n'.
 
   return true;
 }

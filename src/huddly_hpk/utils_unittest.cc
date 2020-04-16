@@ -10,6 +10,7 @@
 namespace {
 
 using huddly::NumericVersion;
+using huddly::StripAnsiSgrCodes;
 
 class UtilsTest : public ::testing::Test {
  protected:
@@ -82,6 +83,38 @@ TEST_F(UtilsTest, NumericVersionOperatorGreaterOrEqual) {
   EXPECT_GE(NumericVersion({4, 5, 6}), NumericVersion({1, 5, 6}));
 
   EXPECT_FALSE(NumericVersion({1, 2, 2}) >= NumericVersion({1, 2, 4}));
+}
+
+TEST_F(UtilsTest, StripAnsiSgrCodes_EmptyString) {
+  EXPECT_EQ("", StripAnsiSgrCodes(""));
+}
+
+TEST_F(UtilsTest, StripAnsiSgrCodes_SingleAnsiColorCodeAtEnd) {
+  std::string s("before\x1b[1;2m");
+  EXPECT_EQ("before", StripAnsiSgrCodes(s));
+}
+
+TEST_F(UtilsTest, StripAnsiSgrCodes_SingleAnsiColorCodeAtBeginning) {
+  std::string s("\x1b[1;2mafter");
+  EXPECT_EQ("after", StripAnsiSgrCodes(s));
+}
+
+TEST_F(UtilsTest, StripAnsiSgrCodes_SingleAnsiColorCodeInMiddle) {
+  std::string s("before\x1b[1;2mafter");
+  EXPECT_EQ("beforeafter", StripAnsiSgrCodes(s));
+}
+
+TEST_F(UtilsTest, StripAnsiSgrCodes_MultipleAnsiColorCodes) {
+  std::string s("\x1b[1mfirst\x1b[1;2msecond\x1b[2m");
+  EXPECT_EQ("firstsecond", StripAnsiSgrCodes(s));
+}
+
+TEST_F(UtilsTest, StripAnsiSgrCodes_IncompleteAnsiColorCode) {
+  EXPECT_EQ("", StripAnsiSgrCodes("\x1b"));
+  EXPECT_EQ("", StripAnsiSgrCodes("\x1b["));
+  EXPECT_EQ("", StripAnsiSgrCodes("\x1b[1"));
+  EXPECT_EQ("", StripAnsiSgrCodes("\x1b[1;"));
+  EXPECT_EQ("", StripAnsiSgrCodes("\x1b[1;100"));
 }
 
 }  // namespace

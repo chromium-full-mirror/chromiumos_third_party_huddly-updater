@@ -47,6 +47,8 @@ std::string Uint8ToHexString(uint8_t value);
 std::string Uint16ToHexString(uint16_t value);
 std::string UsbVidPidString(uint16_t vid, uint16_t pid);
 
+std::string StripAnsiSgrCodes(const std::string& in);
+
 }  // namespace huddly
 
 #endif  //  SRC_HUDDLY_HPK_UTILS_H_

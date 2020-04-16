@@ -4,9 +4,11 @@
 
 #include "utils.h"
 
-#include <iomanip>
-#include <sstream>
+#include <algorithm>
 #include <cassert>
+#include <iomanip>
+#include <iterator>
+#include <sstream>
 
 namespace huddly {
 
@@ -71,6 +73,32 @@ std::string Uint16ToHexString(const uint16_t value) {
 
 std::string UsbVidPidString(uint16_t vid, uint16_t pid) {
   return Uint16ToHexString(vid) + ":" + Uint16ToHexString(pid);
+}
+
+std::string StripAnsiSgrCodes(const std::string& in) {
+  std::string out;
+  auto out_inserter = std::back_inserter(out);
+
+  size_t pos = 0;
+  while (pos != std::string::npos) {
+    const auto esc_pos = in.find("\x1b", pos);
+    if (esc_pos == std::string::npos) {
+      // No more escape codes, copy rest of string.
+      std::copy(in.begin() + pos, in.end(), out_inserter);
+    } else {
+      // Escape code found. Copy until first escape character.
+      std::copy(in.begin() + pos, in.begin() + esc_pos, out_inserter);
+    }
+    const auto end = in.find("m", esc_pos);
+    // If the end of the control code is not found, break.
+    if (end == std::string::npos) {
+      break;
+    }
+    // Start again after the control code.
+    pos = end + 1;
+  }
+
+  return out;
 }
 
 }  // namespace huddly
