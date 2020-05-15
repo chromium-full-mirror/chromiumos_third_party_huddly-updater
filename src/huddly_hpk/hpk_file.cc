@@ -72,7 +72,8 @@ bool HpkFile::ParseJsonManifest(std::string* error_msg) {
   // observed, to build on both CrOS and older versions of Android, as such we
   // get the raw pointer and recast to unique_ptr regardless if it is shared_ptr
   // or unique_ptr
-  auto root_value = base::JSONReader().ReadAndReturnError(
+  // TODO(crbug/1066447): update to new Read API after libchrome uprev.
+  auto root_value = base::JSONReader().ReadAndReturnErrorDeprecated(
       manifest_data_, base::JSON_PARSE_RFC, &error_code, &json_error_msg);
   manifest_root_.reset(std::move(root_value.release()));
 
