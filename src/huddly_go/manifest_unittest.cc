@@ -36,12 +36,10 @@ TEST_F(ManifestTest, ReadJSONDictionary) {
   std::string content;
   ASSERT_TRUE(ReadFileToString(manifest.path(), &content));
 
-  // TODO(crbug/1066447): update to new Read API after libchrome uprev.
-  std::unique_ptr<base::Value> root =
-      base::JSONReader().ReadDeprecated(content, base::JSON_PARSE_RFC);
-  ASSERT_TRUE(root) << base::JSONReader().GetErrorMessage();
-  base::DictionaryValue* root_dic;
-  EXPECT_TRUE(root->GetAsDictionary(&root_dic));
+  auto root = base::JSONReader::ReadAndReturnValueWithError(
+      content, base::JSON_PARSE_RFC);
+  ASSERT_TRUE(root.value) << root.error_message;
+  EXPECT_TRUE(root.value->is_dict());
 }
 
 TEST_F(ManifestTest, TestParseFile) {

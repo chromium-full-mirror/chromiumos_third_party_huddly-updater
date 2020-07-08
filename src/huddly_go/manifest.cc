@@ -36,9 +36,7 @@ bool Manifest::ParseFile() {
   scoped_ptr<base::Value> root =
       base::JSONReader().Read(content, base::JSON_PARSE_RFC);
 #else
-  // TODO(crbug/1066447): update to new Read API after libchrome uprev.
-  std::unique_ptr<base::Value> root =
-      base::JSONReader().ReadDeprecated(content, base::JSON_PARSE_RFC);
+  auto root = base::JSONReader::Read(content, base::JSON_PARSE_RFC);
 #endif
 
   if (!root) {
