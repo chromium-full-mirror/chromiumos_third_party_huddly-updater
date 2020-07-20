@@ -4,7 +4,7 @@
 
 include common.mk
 
-PC_DEPS = libbrillo-$(BASE_VER) libchrome-$(BASE_VER) libusb-1.0 libudev msgpack
+PC_DEPS = libbrillo libchrome-$(BASE_VER) libusb-1.0 libudev msgpack
 PC_CFLAGS := $(shell $(PKG_CONFIG) --cflags $(PC_DEPS))
 PC_LIBS := $(shell $(PKG_CONFIG) --libs $(PC_DEPS))
 LDLIBS += $(PC_LIBS)
