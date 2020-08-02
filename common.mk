@@ -122,11 +122,8 @@ override OUT := $(realpath $(OUT))/
 # $(PWD) != $(CURDIR) all the time.
 export SRC ?= $(CURDIR)
 
-# If BASE_VER is not set, read the libchrome revision number from
-# common-mk/BASE_VER file.
-ifeq ($(strip $(BASE_VER)),)
-BASE_VER := $(shell cat $(SRC)/../common-mk/BASE_VER)
-endif
+# Read libchrome from /usr/share/libchrome/BASE_VER
+BASE_VER := $(shell cat $(SYSROOT)/usr/share/libchrome/BASE_VER)
 $(info Using BASE_VER=$(BASE_VER))
 
 # Re-start in the $(OUT) directory if we're not there.
