@@ -41,7 +41,11 @@ int main(int argc, char* argv[]) {
     // A particular log file is specified.
     logging::LoggingSettings logging_settings;
     logging_settings.logging_dest = logging::LOG_TO_FILE;
+#if BASE_VER < 780000
     logging_settings.log_file = FLAGS_log_to.c_str();
+#else
+    logging_settings.log_file_path = FLAGS_log_to.c_str();
+#endif
     logging_settings.lock_log = logging::DONT_LOCK_LOG_FILE;
     logging::InitLogging(logging_settings);
   }
