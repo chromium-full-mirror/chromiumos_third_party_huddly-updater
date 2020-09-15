@@ -33,8 +33,7 @@ class HpkFile {
 
   std::string file_contents_;
   std::string manifest_data_;
-  std::unique_ptr<base::Value> manifest_root_;
-  base::DictionaryValue* manifest_root_dictionary_;
+  base::Value manifest_root_dictionary_;
   std::vector<uint32_t> firmware_version_;
 };
 

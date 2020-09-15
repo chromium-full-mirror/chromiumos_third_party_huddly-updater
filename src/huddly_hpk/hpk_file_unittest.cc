@@ -115,7 +115,7 @@ TEST_F(HpkFileTest, GetVersionButNumericVersionWrongType) {
               HasSubstr("Failed to get firmware version component as integer"));
 }
 
-TEST_F(HpkFileTest, GetversionNumericFromExampleFile) {
+TEST_F(HpkFileTest, GetVersionNumericFromExampleFile) {
   const auto instance =
       huddly::HpkFile::Create(base::FilePath(kHpkTestFilePath), &error_msg);
   ASSERT_NE(nullptr, instance);
@@ -128,7 +128,7 @@ TEST_F(HpkFileTest, GetversionNumericFromExampleFile) {
   EXPECT_EQ(kExpectedFirmwareVersionNumeric_, firmware_version);
 }
 
-TEST_F(HpkFileTest, GetversionStringFromExampleFile) {
+TEST_F(HpkFileTest, GetVersionStringFromExampleFile) {
   const auto instance =
       huddly::HpkFile::Create(base::FilePath(kHpkTestFilePath), &error_msg);
   ASSERT_NE(nullptr, instance);
