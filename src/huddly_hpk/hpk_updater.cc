@@ -13,6 +13,7 @@
 #include <sstream>
 #include <utility>
 
+#include <base/logging.h>
 #include <base/time/time.h>
 #include <cfm-dfu-notification/idfu_notification.h>
 
