@@ -45,14 +45,13 @@ bool Manifest::ParseFile() {
     return false;
   }
 
-  base::DictionaryValue* root_dic;
-  if (!(root->GetAsDictionary(&root_dic))) {
+  if (!root->is_dict()) {
     std::cout << "..Failed to read as dictionary from file: " << path_.value()
               << "\n";
     return false;
   }
 
-  manifest_ver_ = ParseManifestVersion(root_dic);
+  manifest_ver_ = ParseManifestVersion(*root);
   if (!IsCompatible(manifest_ver_)) {
     std::cout << "..ParseManifestDict failed: manifest version "
               << manifest_ver_
@@ -61,28 +60,23 @@ bool Manifest::ParseFile() {
   }
 
   // Parse strings: Upon internal failures, empty strings are returned.
-  ParseHardwareRev(root_dic, &hw_rev_);
-  ParseFirmwareFileVersions(root_dic, &app_ver_, &boot_ver_);
+  ParseHardwareRev(*root, &hw_rev_);
+  ParseFirmwareFileVersions(*root, &app_ver_, &boot_ver_);
 
   return true;
 }
 
-int Manifest::ParseManifestVersion(base::DictionaryValue* dic) {
-  if (!dic) {
-    std::cout << "..faield to parse manifest_version: null dic. Default to "
-              << kManifestVersionUnknown << "\n";
-    return kManifestVersionUnknown;
-  }
-
+int Manifest::ParseManifestVersion(const base::Value& dic) {
+  CHECK(dic.is_dict());
   // key: manifest_version
-  int manifest_version;
-  if (!dic->GetInteger("manifest_version", &manifest_version)) {
+  auto manifest_version = dic.FindIntKey("manifest_version");
+  if (!manifest_version.has_value()) {
     std::cout << "..failed to parse manifest_version. Default to "
               << kManifestVersionUnknown << "\n";
     return kManifestVersionUnknown;
   }
 
-  return manifest_version;
+  return *manifest_version;
 }
 
 bool Manifest::IsCompatible(int manifest_ver) {
@@ -99,78 +93,67 @@ bool Manifest::IsCompatible(int manifest_ver) {
   return result;
 }
 
-void Manifest::ParseFirmwareFileVersions(base::DictionaryValue* dic,
+void Manifest::ParseFirmwareFileVersions(const base::Value& dic,
                                          std::string* app_ver,
                                          std::string* boot_ver) {
+  CHECK(dic.is_dict());
   *app_ver = "";
   *boot_ver = "";
 
-  if (!dic) {
-    std::cout << "..ParseFirmwareFileVersions failed: null dic";
-    return;
-  }
-
   // key: files
-  base::Value* files_list = dic->FindListKey("files");
+  const base::Value* files_list = dic.FindListKey("files");
   if (!files_list) {
     std::cout << "failed to parse in finding 'files' key"
               << "\n";
     return;
   }
 
-  for (auto& elem : files_list->GetList()) {
-    base::DictionaryValue* dic = nullptr;
-    if (!elem.GetAsDictionary(&dic)) {
+  for (const auto& elem : files_list->GetList()) {
+    if (!elem.is_dict()) {
       std::cout << "failed to parse an files element as dictionary"
                 << "\n";
       continue;
     }
 
-    std::string type;
-    if (!dic->GetString("type", &type)) {
+    const std::string* type = elem.FindStringKey("type");
+    if (!type) {
       std::cout << "failed to parse type as string";
       continue;
     }
 
-    base::DictionaryValue* version_dic = nullptr;
-    if (!dic->GetDictionary("version", &version_dic)) {
+    const base::Value* version_dic = elem.FindDictKey("version");
+    if (!version_dic) {
       std::cout << "failed to parse version as dictionary";
       continue;
     }
 
-    base::ListValue* numerical_list = nullptr;
-    if (!version_dic->GetList("numerical", &numerical_list)) {
+    const base::Value* numerical_list = version_dic->FindListKey("numerical");
+    if (!numerical_list) {
       std::cout << "failed to parse numerical as list";
       continue;
     }
 
-    std::string numerical_str = ListToStr(numerical_list, ".");
+    std::string numerical_str = ListToStr(*numerical_list, ".");
 
-    if (type == "mv2_boot") {
+    if (*type == "mv2_boot") {
       *boot_ver = numerical_str;
-    } else if (type == "mv2_app") {
+    } else if (*type == "mv2_app") {
       *app_ver = numerical_str;
     }
   }
 }
 
-std::string Manifest::ListToStr(base::ListValue* list_val,
+std::string Manifest::ListToStr(const base::Value& list_val,
                                 const std::string& separator) {
-  if (!list_val) {
-    std::cout << "ListToStr: null list value"
-              << "\n";
-    return "";
-  }
-
+  CHECK(list_val.is_list());
   std::string result = "";
-  for (auto& elem : list_val->GetList()) {
-    int val;
-    if (!elem.GetAsInteger(&val)) {
+  for (const auto& val : list_val.GetList()) {
+    if (!val.is_int()) {
       std::cout << "failed to parse value as integer from list value"
                 << "\n";
       continue;
     }
-    result.append(std::to_string(val));
+    result.append(std::to_string(val.GetInt()));
     result.append(separator);
   }
   result.pop_back();  // Drop the last separator;
@@ -178,39 +161,33 @@ std::string Manifest::ListToStr(base::ListValue* list_val,
   return result;
 }
 
-void Manifest::ParseHardwareRev(base::DictionaryValue* dic,
+void Manifest::ParseHardwareRev(const base::Value& dic,
                                 std::string* hw_rev) {
   *hw_rev = "";
-  if (!dic) {
-    std::cout << "..ParseHardwareRev: null dic"
-              << "\n";
-    return;
-  }
 
   // key: compatible_hw
-  base::Value* compatible_hw_list = dic->FindListKey("compatible_hw");
+  const base::Value* compatible_hw_list = dic.FindListKey("compatible_hw");
   if (!compatible_hw_list) {
     std::cout << "failed to parse in finding 'compatible_hw' key'"
               << "\n";
     return;  // returning empty string |hw_rev|.
   }
 
-  for (auto& elem : compatible_hw_list->GetList()) {
-    base::DictionaryValue* compatible_hw_dic = nullptr;
-    if (!elem.GetAsDictionary(&compatible_hw_dic)) {
+  for (const auto& compatible_hw_dic : compatible_hw_list->GetList()) {
+    if (!compatible_hw_dic.is_dict()) {
       std::cout << "failed to parse 'compatible_hw' element as dictionary"
                 << "\n";
       continue;
     }
 
-    base::ListValue* rev_list = nullptr;
-    if (!compatible_hw_dic->GetList("hwrevs", &rev_list)) {
+    const base::Value* rev_list = compatible_hw_dic.FindListKey("hwrevs");
+    if (!rev_list) {
       std::cout << "failed to parse hwrevs as list"
                 << "\n";
       continue;
     }
 
-    *hw_rev = ListToStr(rev_list, ",");
+    *hw_rev = ListToStr(*rev_list, ",");
   }
 }
 
