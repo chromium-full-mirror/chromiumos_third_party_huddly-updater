@@ -8,7 +8,6 @@
 
 #include <base/files/file_util.h>
 #include <base/json/json_reader.h>
-#include <base/macros.h>
 #include <base/values.h>
 #include <gtest/gtest.h>
 

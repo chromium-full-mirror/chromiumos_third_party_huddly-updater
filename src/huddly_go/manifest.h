@@ -6,7 +6,6 @@
 #define SRC_MANIFEST_H_
 
 #include <base/files/file_path.h>
-#include <base/macros.h>
 #include <base/values.h>
 #include <string>
 
@@ -16,6 +15,9 @@ class Manifest {
  public:
   explicit Manifest(const base::FilePath& path) : path_(path) {}
   Manifest() = default;
+  Manifest(const Manifest&) = delete;
+  Manifest& operator=(const Manifest&) = delete;
+
   ~Manifest() = default;
 
   bool ParseFile();
@@ -44,8 +46,6 @@ class Manifest {
   std::string app_ver_;
   std::string boot_ver_;
   std::string hw_rev_;
-
-  DISALLOW_COPY_AND_ASSIGN(Manifest);
 };
 
 }  // namespace huddly

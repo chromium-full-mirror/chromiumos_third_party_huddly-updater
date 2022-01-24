@@ -4,7 +4,6 @@
 #ifndef SRC_HUDDLY_HPK_USB_H_
 #define SRC_HUDDLY_HPK_USB_H_
 
-#include <base/macros.h>
 #include <libusb.h>
 
 #include <cstdint>
@@ -32,6 +31,9 @@ class UsbEndpoint {
 class UsbDevice {
  public:
   explicit UsbDevice(const Usb* usb, libusb_device* dev);
+  UsbDevice(const UsbDevice&) = delete;
+  UsbDevice& operator=(const UsbDevice&) = delete;
+
   ~UsbDevice();
 
   bool Open();
@@ -61,13 +63,15 @@ class UsbDevice {
   libusb_device* dev_ = nullptr;
   libusb_device_descriptor device_descriptor_ = {};
   libusb_device_handle* devh_ = nullptr;
-
-  DISALLOW_COPY_AND_ASSIGN(UsbDevice);
 };
 
 class UsbDeviceList {
  public:
   static std::unique_ptr<UsbDeviceList> Create(libusb_context* ctx);
+
+  UsbDeviceList(const UsbDeviceList&) = delete;
+  UsbDeviceList& operator=(const UsbDeviceList&) = delete;
+
   ~UsbDeviceList();
 
   bool Valid() const;
@@ -79,13 +83,15 @@ class UsbDeviceList {
 
   ssize_t count_;
   libusb_device** devices_;
-
-  DISALLOW_COPY_AND_ASSIGN(UsbDeviceList);
 };
 
 class Usb {
  public:
   static std::unique_ptr<Usb> Create();
+
+  Usb(const Usb&) = delete;
+  Usb& operator=(const Usb&) = delete;
+
   ~Usb();
 
   std::unique_ptr<UsbDevice> FindDevice(uint16_t vid,
@@ -101,8 +107,6 @@ class Usb {
  private:
   Usb() {}
   libusb_context* ctx_ = nullptr;
-
-  DISALLOW_COPY_AND_ASSIGN(Usb);
 };
 
 }  // namespace huddly

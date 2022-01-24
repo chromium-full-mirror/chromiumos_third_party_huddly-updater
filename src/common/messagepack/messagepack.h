@@ -6,7 +6,6 @@
 
 #include <msgpack.h>
 
-#include <base/macros.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -205,6 +204,10 @@ class Unpacker {
   bool GetRoot(T* out) const {
     return GetRootObject().Get<T>(out);
   }
+
+  Unpacker(const Unpacker&) = delete;
+  Unpacker& operator=(const Unpacker&) = delete;
+
   ~Unpacker();
 
  private:
@@ -212,8 +215,6 @@ class Unpacker {
 
   msgpack_unpacked unpacked_;
   std::vector<uint8_t> packed_;
-
-  DISALLOW_COPY_AND_ASSIGN(Unpacker);
 };
 
 }  // namespace messagepack

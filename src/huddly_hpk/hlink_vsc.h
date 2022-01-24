@@ -4,7 +4,6 @@
 #ifndef SRC_HUDDLY_HPK_HLINK_VSC_H_
 #define SRC_HUDDLY_HPK_HLINK_VSC_H_
 
-#include <base/macros.h>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -19,6 +18,10 @@ class HLinkVsc {
  public:
   static std::unique_ptr<HLinkVsc> Create(
       std::unique_ptr<UsbDevice> usb_device);
+
+  HLinkVsc(const HLinkVsc&) = delete;
+  HLinkVsc& operator=(const HLinkVsc&) = delete;
+
   ~HLinkVsc();
   UsbDevice* GetUsbDevice();
   bool Connect();
@@ -43,8 +46,6 @@ class HLinkVsc {
   bool interface_claimed_ = false;
   UsbEndpoint endpoint_in_;
   UsbEndpoint endpoint_out_;
-
-  DISALLOW_COPY_AND_ASSIGN(HLinkVsc);
 };
 
 }  // namespace huddly

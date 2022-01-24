@@ -4,7 +4,6 @@
 #ifndef SRC_HUDDLY_HPK_MESSAGE_BUS_H_
 #define SRC_HUDDLY_HPK_MESSAGE_BUS_H_
 
-#include <base/macros.h>
 #include <memory>
 #include <string>
 #include "hlink_vsc.h"
@@ -22,14 +21,16 @@ class ScopedSubscribe {
  public:
   static std::unique_ptr<ScopedSubscribe> Create(
       HLinkVsc* hlink, const std::string& subscription);
+
+  ScopedSubscribe(const ScopedSubscribe&) = delete;
+  ScopedSubscribe& operator=(const ScopedSubscribe&) = delete;
+
   ~ScopedSubscribe();
 
  private:
   ScopedSubscribe(HLinkVsc* hlink, const std::string& subscription);
   HLinkVsc* hlink_ = nullptr;
   std::string subscription_;
-
-  DISALLOW_COPY_AND_ASSIGN(ScopedSubscribe);
 };
 
 }  // namespace message_bus
