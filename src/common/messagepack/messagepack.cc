@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 #include "messagepack.h"
 
-#include <base/compiler_specific.h>
 #include <base/logging.h>
 
 // Macro for telling -Wimplicit-fallthrough that a fallthrough is intentional.
@@ -149,21 +148,21 @@ bool Object::GetAs<int64_t>(int64_t* out) const {
       *out = object_.via.i64;
       return true;
     case MSGPACK_OBJECT_FLOAT32:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_FLOAT:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_BOOLEAN:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_NIL:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_STR:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_ARRAY:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_MAP:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_BIN:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_EXT:
       return false;
   }
@@ -179,21 +178,21 @@ bool Object::GetAs<uint64_t>(uint64_t* out) const {
       *out = static_cast<uint64_t>(object_.via.i64);
       return true;
     case MSGPACK_OBJECT_FLOAT32:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_FLOAT:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_BOOLEAN:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_NIL:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_STR:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_ARRAY:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_MAP:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_BIN:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_EXT:
       return false;
   }
@@ -209,22 +208,22 @@ bool Object::GetAs<double>(double* out) const {
       *out = static_cast<double>(object_.via.i64);
       return true;
     case MSGPACK_OBJECT_FLOAT32:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_FLOAT:
       *out = object_.via.f64;
       return true;
     case MSGPACK_OBJECT_BOOLEAN:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_NIL:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_STR:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_ARRAY:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_MAP:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_BIN:
-      FALLTHROUGH;
+      [[fallthrough]];
     case MSGPACK_OBJECT_EXT:
       return false;
   }
