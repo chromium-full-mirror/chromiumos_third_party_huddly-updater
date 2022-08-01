@@ -37,8 +37,8 @@ TEST_F(ManifestTest, ReadJSONDictionary) {
 
   auto root = base::JSONReader::ReadAndReturnValueWithError(
       content, base::JSON_PARSE_RFC);
-  ASSERT_TRUE(root.value) << root.error_message;
-  EXPECT_TRUE(root.value->is_dict());
+  ASSERT_TRUE(root.has_value()) << root.error().message;
+  EXPECT_TRUE(root->is_dict());
 }
 
 TEST_F(ManifestTest, TestParseFile) {
