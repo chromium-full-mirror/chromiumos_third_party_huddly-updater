@@ -73,18 +73,18 @@ bool HpkFile::ParseJsonManifest(std::string* error_msg) {
   auto root_value = base::JSONReader::ReadAndReturnValueWithError(
       manifest_data_, base::JSON_PARSE_RFC);
 
-  if (!root_value.value) {
-    *error_msg = "Failed to parse json data:\n" + root_value.error_message;
+  if (!root_value.has_value()) {
+    *error_msg = "Failed to parse json data:\n" + root_value.error().message;
     return false;
   }
 
   // The root of the manifest should always be a dictionary.
-  if (!root_value.value->is_dict()) {
+  if (!root_value->is_dict()) {
     *error_msg = "Manifest root object is not a dictionary.";
     return false;
   }
 
-  manifest_root_dictionary_ = std::move(*root_value.value);
+  manifest_root_dictionary_ = std::move(*root_value);
 
   return true;
 }
