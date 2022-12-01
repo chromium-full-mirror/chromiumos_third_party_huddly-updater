@@ -84,26 +84,26 @@ bool HpkFile::ParseJsonManifest(std::string* error_msg) {
     return false;
   }
 
-  manifest_root_dictionary_ = std::move(*root_value);
+  manifest_root_dictionary_ = std::move(root_value->GetDict());
 
   return true;
 }
 
 bool HpkFile::GetFirmwareVersionNumeric(std::vector<uint32_t>* version,
                                         std::string* error_msg) const {
-  const base::Value* fw_version =
-      manifest_root_dictionary_.FindListPath("version.numerical");
+  const base::Value::List* fw_version =
+      manifest_root_dictionary_.FindListByDottedPath("version.numerical");
   if (!fw_version) {
     *error_msg = "Failed to get firmware version as list.";
     return false;
   }
 
-  if (fw_version->GetList().size() != kExpectedFirmwareVersionLength) {
+  if (fw_version->size() != kExpectedFirmwareVersionLength) {
     *error_msg = "Unexpected firmware version length.";
     return false;
   }
 
-  for (const auto& component : fw_version->GetList()) {
+  for (const auto& component : *fw_version) {
     if (!component.is_int()) {
       *error_msg = "Failed to get firmware version component as integer.";
       return false;
@@ -116,7 +116,7 @@ bool HpkFile::GetFirmwareVersionNumeric(std::vector<uint32_t>* version,
 bool HpkFile::GetFirmwareVersionString(std::string* version,
                                        std::string* error_msg) const {
   const std::string* fw_version =
-      manifest_root_dictionary_.FindStringPath("version.app_version");
+      manifest_root_dictionary_.FindStringByDottedPath("version.app_version");
   if (!fw_version) {
     *error_msg = "Failed to get firmware version as string.";
     return false;

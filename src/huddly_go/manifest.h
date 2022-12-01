@@ -21,15 +21,15 @@ class Manifest {
   ~Manifest() = default;
 
   bool ParseFile();
-  int ParseManifestVersion(const base::Value& dic);
+  int ParseManifestVersion(const base::Value::Dict& dic);
   bool IsCompatible(int manifest_ver);
-  void ParseHardwareRev(const base::Value& dic, std::string* hw_rev);
-  void ParseFirmwareFileVersions(const base::Value& dic,
+  void ParseHardwareRev(const base::Value::Dict& dic, std::string* hw_rev);
+  void ParseFirmwareFileVersions(const base::Value::Dict& dic,
                                  std::string* app_ver,
                                  std::string* boot_ver);
 
   std::string GetFileContent(const base::FilePath& path);
-  std::string ListToStr(const base::Value& list_val,
+  std::string ListToStr(const base::Value::List& list_val,
                         const std::string& separator);
   void Dump();  // show the result of parsing.
 
