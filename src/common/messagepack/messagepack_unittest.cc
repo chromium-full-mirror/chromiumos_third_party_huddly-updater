@@ -35,7 +35,7 @@ class MessagePackTest : public ::testing::Test {
     packer.pack_int64(-100000);
 
     PackString(&packer, "double");
-    packer.pack_double(100.0);
+    packer.pack_double(100.5);
 
     PackString(&packer, "string");
     PackString(&packer, "str");
@@ -135,7 +135,7 @@ class MessagePackTest : public ::testing::Test {
   std::vector<uint8_t> int64_packed_;
   const int64_t kInt64Value_ = -9876543210987;
   std::vector<uint8_t> double_packed_;
-  const double kDoubleValue_ = 1.23455e8;
+  const double kDoubleValue_ = 1.23455e-2;
 
   const std::vector<uint8_t> nil_packed_ = {0xc0};
   const std::vector<uint8_t> false_packed_ = {0xc2};
@@ -422,7 +422,7 @@ TEST_F(MessagePackTest, Map) {
 
   double double_value;
   EXPECT_TRUE(map.GetValue<double>("double", &double_value));
-  EXPECT_EQ(100.0, double_value);
+  EXPECT_EQ(100.5, double_value);
   EXPECT_TRUE(map.GetValueAs<double>("double", &double_value));
 
   int64_t int64_value;
