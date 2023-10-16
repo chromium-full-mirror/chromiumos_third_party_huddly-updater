@@ -488,7 +488,6 @@ bool MinicamDevice::AllocateBuffer(uint32_t size, std::string* err_msg) const {
 bool MinicamDevice::UploadImage(uint32_t data_len,
                                 uint8_t* data,
                                 std::string* err_msg) const {
-  uint32_t sum = 0;
   for (uint32_t offset = 0; offset < data_len; offset += kChunkSizeBytes) {
     uint32_t chunk_size = kChunkSizeBytes;
     if (offset + chunk_size > data_len) {
@@ -513,7 +512,6 @@ bool MinicamDevice::UploadImage(uint32_t data_len,
       LOG(INFO) << "Stop uploading image. Start bailout sequence..";
       return false;
     }
-    sum += chunk_size;
   }
 
   ShowProgress(data_len, data_len);  // To show 100%
