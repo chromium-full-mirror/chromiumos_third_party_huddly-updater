@@ -4,7 +4,7 @@
 
 include common.mk
 
-PC_DEPS = libbrillo libchrome libusb-1.0 libudev
+PC_DEPS = libbrillo libchrome libusb-1.0 libudev cfm-dfu-notification
 PC_CFLAGS := $(shell $(PKG_CONFIG) --cflags $(PC_DEPS))
 PC_LIBS := $(shell $(PKG_CONFIG) --libs $(PC_DEPS))
 LDLIBS += $(PC_LIBS)

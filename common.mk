@@ -349,16 +349,6 @@ endif
 
 LDFLAGS := $(LDFLAGS) -Wl,-z,relro -Wl,-z,noexecstack -Wl,-z,now
 
-# Add Cros package libraries.
-PC_DEPS = cfm-dfu-notification
-
-PC_CFLAGS := $(shell $(PKG_CONFIG) --cflags $(PC_DEPS))
-PC_LIBS := $(shell $(PKG_CONFIG) --libs $(PC_DEPS))
-LDFLAGS += $(PC_LIBS)
-
-CPPFLAGS += $(PC_CFLAGS)
-
-
 # Fancy helpers for color if a prompt is defined
 ifeq ($(COLOR),1)
 COLOR_RESET = \x1b[0m
