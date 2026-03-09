@@ -51,7 +51,7 @@ bool Manifest::ParseFile() {
     return false;
   }
 
-  const base::Value::Dict& dict = root->GetDict();
+  const base::DictValue& dict = root->GetDict();
   manifest_ver_ = ParseManifestVersion(dict);
   if (!IsCompatible(manifest_ver_)) {
     std::cout << "..ParseManifestDict failed: manifest version "
@@ -67,7 +67,7 @@ bool Manifest::ParseFile() {
   return true;
 }
 
-int Manifest::ParseManifestVersion(const base::Value::Dict& dic) {
+int Manifest::ParseManifestVersion(const base::DictValue& dic) {
   // key: manifest_version
   auto manifest_version = dic.FindInt("manifest_version");
   if (!manifest_version.has_value()) {
@@ -93,14 +93,14 @@ bool Manifest::IsCompatible(int manifest_ver) {
   return result;
 }
 
-void Manifest::ParseFirmwareFileVersions(const base::Value::Dict& dic,
+void Manifest::ParseFirmwareFileVersions(const base::DictValue& dic,
                                          std::string* app_ver,
                                          std::string* boot_ver) {
   *app_ver = "";
   *boot_ver = "";
 
   // key: files
-  const base::Value::List* files_list = dic.FindList("files");
+  const base::ListValue* files_list = dic.FindList("files");
   if (!files_list) {
     std::cout << "failed to parse in finding 'files' key"
               << "\n";
@@ -120,13 +120,13 @@ void Manifest::ParseFirmwareFileVersions(const base::Value::Dict& dic,
       continue;
     }
 
-    const base::Value::Dict* version_dic = elem.GetDict().FindDict("version");
+    const base::DictValue* version_dic = elem.GetDict().FindDict("version");
     if (!version_dic) {
       std::cout << "failed to parse version as dictionary";
       continue;
     }
 
-    const base::Value::List* numerical_list =
+    const base::ListValue* numerical_list =
         version_dic->FindList("numerical");
     if (!numerical_list) {
       std::cout << "failed to parse numerical as list";
@@ -143,7 +143,7 @@ void Manifest::ParseFirmwareFileVersions(const base::Value::Dict& dic,
   }
 }
 
-std::string Manifest::ListToStr(const base::Value::List& list_val,
+std::string Manifest::ListToStr(const base::ListValue& list_val,
                                 const std::string& separator) {
   std::string result = "";
   for (const auto& val : list_val) {
@@ -160,12 +160,12 @@ std::string Manifest::ListToStr(const base::Value::List& list_val,
   return result;
 }
 
-void Manifest::ParseHardwareRev(const base::Value::Dict& dic,
+void Manifest::ParseHardwareRev(const base::DictValue& dic,
                                 std::string* hw_rev) {
   *hw_rev = "";
 
   // key: compatible_hw
-  const base::Value::List* compatible_hw_list = dic.FindList("compatible_hw");
+  const base::ListValue* compatible_hw_list = dic.FindList("compatible_hw");
   if (!compatible_hw_list) {
     std::cout << "failed to parse in finding 'compatible_hw' key'"
               << "\n";
@@ -179,7 +179,7 @@ void Manifest::ParseHardwareRev(const base::Value::Dict& dic,
       continue;
     }
 
-    const base::Value::List* rev_list =
+    const base::ListValue* rev_list =
         compatible_hw_dic.GetDict().FindList("hwrevs");
     if (!rev_list) {
       std::cout << "failed to parse hwrevs as list"

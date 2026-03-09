@@ -91,7 +91,7 @@ bool HpkFile::ParseJsonManifest(std::string* error_msg) {
 
 bool HpkFile::GetFirmwareVersionNumeric(std::vector<uint32_t>* version,
                                         std::string* error_msg) const {
-  const base::Value::List* fw_version =
+  const base::ListValue* fw_version =
       manifest_root_dictionary_.FindListByDottedPath("version.numerical");
   if (!fw_version) {
     *error_msg = "Failed to get firmware version as list.";
