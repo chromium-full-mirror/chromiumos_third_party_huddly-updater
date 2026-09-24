@@ -8,6 +8,7 @@
 #include <endian.h>
 #include <iostream>
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
